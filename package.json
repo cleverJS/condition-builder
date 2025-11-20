@@ -1,5 +1,5 @@
 {
-  "name": "condition_builder",
+  "name": "condition-builder",
   "version": "1.0.0",
   "description": "A builder to create nested JSON representing SQL where conditions",
   "main": "dist/index.js",
@@ -7,9 +7,9 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "require": "./dist/index.js",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "require": "./dist/src/index.js",
+      "import": "./dist/src/index.js",
+      "default": "./dist/src/index.js"
     },
     "./package.json": "./package.json"
   },
@@ -21,7 +21,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/cleverJS/condition_builder.git"
+    "url": "https://github.com/cleverJS/condition-builder.git"
   },
   "scripts": {
     "clean": "rm -rf dist tsconfig.build.tsbuildinfo",
@@ -35,25 +35,28 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "typescript": "^5.9.3",
-    "ts-node": "^10.9.2",
-    "@types/node": "^22.18.13",
-
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.38.0",
     "@swc/cli": "^0.7.8",
     "@swc/core": "^1.14.0",
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.18.13",
     "@types/supertest": "^6.0.3",
     "@vitest/coverage-v8": "^4.0.5",
-    "@eslint/eslintrc": "^3.3.1",
-    "@eslint/js": "^9.38.0",
+    "better-sqlite3": "^12.4.1",
     "eslint": "^9.38.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
     "eslint-plugin-security": "^3.0.1",
     "eslint-plugin-sonarjs": "^3.0.5",
+    "knex": "^3.1.0",
+    "@mikro-orm/core": "^6.5.9",
     "prettier": "^3.6.2",
     "source-map-support": "^0.5.21",
     "supertest": "^7.1.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.2",
     "unplugin-swc": "^1.5.8",
     "vite-tsconfig-paths": "^5.1.4",

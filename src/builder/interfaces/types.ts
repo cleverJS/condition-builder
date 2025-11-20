@@ -15,7 +15,7 @@ export type Operator =
 export type BasicOperator = '$eq' | '$ne'
 export type ComparisonOperator = '$gt' | '$gte' | '$lt' | '$lte'
 export type PatternOperator = '$like' | '$notlike' | '$ilike'
-export type ArrayOperator = '$in' | '$notin'
+export type ArrayOperator = '$in' | '$notin' | '$nin'
 export type BetweenOperator = '$between' | '$notbetween'
 export type NullOperator = '$isnull' | '$notnull'
 
@@ -77,8 +77,6 @@ interface IConditionNull {
 export type ConditionItem = IConditionSimple | IConditionBetween | IConditionIN | IConditionLike | IConditionNull
 
 export type ConditionGroup = {
-  type: 'and' | 'or'
-  conditions: Array<ConditionItem | ConditionGroup>
+  $and?: Array<ConditionItem | ConditionGroup>
+  $or?: Array<ConditionItem | ConditionGroup>
 }
-
-export type ConditionJson = ConditionGroup

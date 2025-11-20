@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { ConditionBuilder } from '../src/bulder/ConditionBuilder'
+import { ConditionBuilder } from '../src/builder/ConditionBuilder'
 
 describe('ConditionBuilder', () => {
   it('builds simple eq condition', () => {
     const cb = ConditionBuilder.create().where('field1').eq(1)
     expect(cb.toJSON()).toEqual({
-      type: 'and',
-      conditions: [{ field: 'field1', op: '$eq', value: 1 }],
+      $and: [{ field: 'field1', op: '$eq', value: 1 }],
     })
   })
 
@@ -18,12 +17,10 @@ describe('ConditionBuilder', () => {
       .orGroup((b) => b.where('field2').isNotNull().where('field3').gt(5))
 
     expect(cb.toJSON()).toEqual({
-      type: 'and',
-      conditions: [
+      $and: [
         { field: 'field1', op: '$eq', value: 1 },
         {
-          type: 'or',
-          conditions: [
+          $or: [
             { field: 'field2', op: '$notnull' },
             { field: 'field3', op: '$gt', value: 5 },
           ],
@@ -36,11 +33,9 @@ describe('ConditionBuilder', () => {
     const cb = ConditionBuilder.create().andGroup((b) => b.where('a').eq(1).where('b').eq(2))
 
     expect(cb.toJSON()).toEqual({
-      type: 'and',
-      conditions: [
+      $and: [
         {
-          type: 'and',
-          conditions: [
+          $and: [
             { field: 'a', op: '$eq', value: 1 },
             { field: 'b', op: '$eq', value: 2 },
           ],
@@ -67,8 +62,7 @@ describe('ConditionBuilder', () => {
       .isNull()
 
     expect(cb.toJSON()).toEqual({
-      type: 'and',
-      conditions: [
+      $and: [
         { field: 'name', op: '$eq', value: 'alice' },
         { field: 'age', op: '$gt', value: 18 },
         { field: 'score', op: '$lte', value: 100 },
@@ -84,8 +78,7 @@ describe('ConditionBuilder', () => {
     const cb = ConditionBuilder.create().where('age', '$gt', 21).where('name', '$eq', 'bob').where('status', '$in', ['active', 'pending'])
 
     expect(cb.toJSON()).toEqual({
-      type: 'and',
-      conditions: [
+      $and: [
         { field: 'age', op: '$gt', value: 21 },
         { field: 'name', op: '$eq', value: 'bob' },
         { field: 'status', op: '$in', value: ['active', 'pending'] },
@@ -97,8 +90,7 @@ describe('ConditionBuilder', () => {
     const cb = ConditionBuilder.create('age', '$gt', 21)
 
     expect(cb.toJSON()).toEqual({
-      type: 'and',
-      conditions: [
+      $and: [
         { field: 'age', op: '$gt', value: 21 },
       ],
     })
@@ -116,8 +108,7 @@ describe('ConditionBuilder', () => {
     })
 
     expect(cb.toJSON()).toEqual({
-      type: 'and',
-      conditions: [
+      $and: [
         { field: 'name', op: '$eq', value: 'bob' },
         { field: 'age', op: '$gt', value: 21 },
         { field: 'hasJob', op: '$eq', value: 1 },
@@ -141,8 +132,7 @@ describe('ConditionBuilder', () => {
     })
 
     expect(cb.toJSON()).toEqual({
-      type: 'and',
-      conditions: [
+      $and: [
         { field: 'name', op: '$eq', value: 'bob' },
         { field: 'age', op: '$gt', value: 21 },
         { field: 'hasJob', op: '$eq', value: 1 },
@@ -200,8 +190,7 @@ describe('ConditionBuilder', () => {
     })
 
     expect(cb.toJSON()).toEqual({
-      type: 'and',
-      conditions: [
+      $and: [
         { field: 'field1', op: '$gt', value: 10 },
         { field: 'field2', op: '$lt', value: 20 },
         { field: 'field3', op: '$eq', value: 30 },
@@ -230,13 +219,11 @@ describe('ConditionBuilder', () => {
       )
 
     expect(cb.toJSON()).toEqual({
-      type: 'and',
-      conditions: [
+      $and: [
         { field: 'status', op: '$eq', value: 'active' },
         { field: 'age', op: '$gte', value: 18 },
         {
-          type: 'or',
-          conditions: [
+          $or: [
             { field: 'premium', op: '$eq', value: true },
             { field: 'level', op: '$gt', value: 5 },
             { field: 'tags', op: '$in', value: ['vip', 'special'] },
@@ -255,8 +242,7 @@ describe('ConditionBuilder', () => {
     })
 
     expect(cb.toJSON()).toEqual({
-      type: 'and',
-      conditions: [
+      $and: [
         { field: 'email', op: '$like', value: '%@example.com' },
         { field: 'domain', op: '$like', value: 'example.%' },
         { field: 'name', op: '$ilike', value: 'john%' },
@@ -302,10 +288,9 @@ describe('ConditionBuilder', () => {
       .orGroup(() => {})
 
     expect(cb.toJSON()).toEqual({
-      type: 'and',
-      conditions: [
-        { type: 'and', conditions: [] },
-        { type: 'or', conditions: [] },
+      $and: [
+        { $and: [] },
+        { $or: [] },
       ],
     })
   })
@@ -324,19 +309,15 @@ describe('ConditionBuilder', () => {
     )
 
     expect(cb.toJSON()).toEqual({
-      type: 'and',
-      conditions: [
+      $and: [
         {
-          type: 'and',
-          conditions: [
+          $and: [
             { field: 'field1', op: '$eq', value: 1 },
             {
-              type: 'or',
-              conditions: [
+              $or: [
                 { field: 'field2', op: '$eq', value: 2 },
                 {
-                  type: 'and',
-                  conditions: [{ field: 'field3', op: '$eq', value: 3 }],
+                  $and: [{ field: 'field3', op: '$eq', value: 3 }],
                 },
               ],
             },
@@ -350,8 +331,7 @@ describe('ConditionBuilder', () => {
     const cb = ConditionBuilder.create().where('field1', '$gt', 1).where('field2', '$eq', 2).where('field3', '$in', [3]).where('field4', '$like', '4')
 
     expect(cb.toJSON()).toEqual({
-      type: 'and',
-      conditions: [
+      $and: [
         { field: 'field1', op: '$gt', value: 1 },
         { field: 'field2', op: '$eq', value: 2 },
         { field: 'field3', op: '$in', value: [3] },

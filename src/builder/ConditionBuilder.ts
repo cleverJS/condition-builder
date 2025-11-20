@@ -1,6 +1,6 @@
 import { WhereDescriptor } from './interfaces/descriptors'
 import { FieldBuilder } from './FieldBuilder'
-import { ConditionGroup, ConditionItem, ConditionJson, Operator, SimpleValue } from './interfaces/types'
+import { ConditionGroup, ConditionItem, Operator, SimpleValue } from './interfaces/types'
 
 export class ConditionBuilder {
   readonly #root: ConditionGroup
@@ -22,6 +22,7 @@ export class ConditionBuilder {
     },
     ARRAY: {
       $in: { method: 'in' },
+      $nin: { method: 'notIn' },
       $notin: { method: 'notIn' },
       $between: { method: 'between' },
       $notbetween: { method: 'notBetween' },
@@ -33,7 +34,7 @@ export class ConditionBuilder {
   } as const
 
   public constructor() {
-    this.#root = { type: 'and', conditions: [] }
+    this.#root = { $and: [] }
     this.#current = [this.#root]
   }
 
@@ -78,11 +79,13 @@ export class ConditionBuilder {
   }
 
   public addCondition(condition: ConditionItem): ConditionBuilder {
-    this.#getCurrentGroup().conditions.push(this.#deepClone(condition))
+    const group = this.#getCurrentGroup()
+    const key = group.$and ? '$and' : '$or'
+    group[key]!.push(this.#deepClone(condition))
     return this
   }
 
-  public toJSON(): ConditionJson {
+  public toJSON(): ConditionGroup {
     return this.#deepClone(this.#root)
   }
 
@@ -214,8 +217,10 @@ export class ConditionBuilder {
   }
 
   #createGroup(type: 'and' | 'or', callback: (builder: ConditionBuilder) => void): ConditionBuilder {
-    const group: ConditionGroup = { type, conditions: [] }
-    this.#getCurrentGroup().conditions.push(group)
+    const group: ConditionGroup = type === 'and' ? { $and: [] } : { $or: [] }
+    const currentGroup = this.#getCurrentGroup()
+    const key = currentGroup.$and ? '$and' : '$or'
+    currentGroup[key]!.push(group)
     this.#current.push(group)
 
     try {
