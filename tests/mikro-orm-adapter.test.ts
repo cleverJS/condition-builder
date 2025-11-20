@@ -182,7 +182,7 @@ describe('MikroOrmAdapter', () => {
       .gt(25)
       .orGroup((b) => b.where('role').eq('admin').where('role').eq('moderator'))
 
-    const json = builder.toJSON()
+    const json = builder.build()
     const result = adapter.serialize(json)
 
     expect(result).toEqual({
@@ -223,7 +223,7 @@ describe('MikroOrmAdapter', () => {
       .where('maybe')
       .isNull()
 
-    const json = builder.toJSON()
+    const json = builder.build()
     const result = adapter.serialize(json)
 
     expect(result).toEqual({
@@ -265,7 +265,7 @@ describe('MikroOrmAdapter', () => {
       .where('registeredAt')
       .between(new Date('2024-01-01'), new Date('2024-12-31'))
 
-    const json = builder.toJSON()
+    const json = builder.build()
     const result = adapter.serialize(json)
 
     expect(result).toEqual({

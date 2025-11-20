@@ -221,7 +221,7 @@ describe('KnexConditionAdapter', () => {
       .gt(25)
       .orGroup((b) => b.where('role').eq('admin').where('role').eq('moderator'))
 
-    const json = builder.toJSON()
+    const json = builder.build()
     const applier = adapter.serialize(json)
     const query = applier(db('users'))
     const sql = query.toSQL()
@@ -263,7 +263,7 @@ describe('KnexConditionAdapter', () => {
       .where('maybe')
       .isNull()
 
-    const json = builder.toJSON()
+    const json = builder.build()
     const applier = adapter.serialize(json)
     const query = applier(db('users'))
     const sql = query.toSQL()
@@ -295,7 +295,7 @@ describe('KnexConditionAdapter', () => {
     ])
 
     // Build a condition
-    const condition = ConditionBuilder.create().where('status').eq('active').where('age').gte(26).toJSON()
+    const condition = ConditionBuilder.create().where('status').eq('active').where('age').gte(26).build()
 
     // Apply to query and execute
     const applier = adapter.serialize(condition)
@@ -350,7 +350,7 @@ describe('KnexConditionAdapter', () => {
       .where('deletedAt')
       .isNull()
       .orGroup((b) => b.where('isPremium').eq(true).where('postCount').gt(100))
-      .toJSON()
+      .build()
 
     const applier = adapter.serialize(condition)
     const results = await applier(db('users'))

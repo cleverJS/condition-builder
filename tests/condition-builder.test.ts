@@ -5,7 +5,7 @@ import { ConditionBuilder } from '../src/builder/ConditionBuilder'
 describe('ConditionBuilder', () => {
   it('builds simple eq condition', () => {
     const cb = ConditionBuilder.create().where('field1').eq(1)
-    expect(cb.toJSON()).toEqual({
+    expect(cb.build()).toEqual({
       $and: [{ field: 'field1', op: '$eq', value: 1 }],
     })
   })
@@ -16,7 +16,7 @@ describe('ConditionBuilder', () => {
       .eq(1)
       .orGroup((b) => b.where('field2').isNotNull().where('field3').gt(5))
 
-    expect(cb.toJSON()).toEqual({
+    expect(cb.build()).toEqual({
       $and: [
         { field: 'field1', op: '$eq', value: 1 },
         {
@@ -32,7 +32,7 @@ describe('ConditionBuilder', () => {
   it('supports nested and groups', () => {
     const cb = ConditionBuilder.create().andGroup((b) => b.where('a').eq(1).where('b').eq(2))
 
-    expect(cb.toJSON()).toEqual({
+    expect(cb.build()).toEqual({
       $and: [
         {
           $and: [
@@ -61,7 +61,7 @@ describe('ConditionBuilder', () => {
       .where('maybe')
       .isNull()
 
-    expect(cb.toJSON()).toEqual({
+    expect(cb.build()).toEqual({
       $and: [
         { field: 'name', op: '$eq', value: 'alice' },
         { field: 'age', op: '$gt', value: 18 },
@@ -77,7 +77,7 @@ describe('ConditionBuilder', () => {
   it('supports where(field, op, value) shorthand', () => {
     const cb = ConditionBuilder.create().where('age', '$gt', 21).where('name', '$eq', 'bob').where('status', '$in', ['active', 'pending'])
 
-    expect(cb.toJSON()).toEqual({
+    expect(cb.build()).toEqual({
       $and: [
         { field: 'age', op: '$gt', value: 21 },
         { field: 'name', op: '$eq', value: 'bob' },
@@ -89,7 +89,7 @@ describe('ConditionBuilder', () => {
   it('supports create(field, op, value) shorthand', () => {
     const cb = ConditionBuilder.create('age', '$gt', 21)
 
-    expect(cb.toJSON()).toEqual({
+    expect(cb.build()).toEqual({
       $and: [
         { field: 'age', op: '$gt', value: 21 },
       ],
@@ -107,7 +107,7 @@ describe('ConditionBuilder', () => {
       active: null,
     })
 
-    expect(cb.toJSON()).toEqual({
+    expect(cb.build()).toEqual({
       $and: [
         { field: 'name', op: '$eq', value: 'bob' },
         { field: 'age', op: '$gt', value: 21 },
@@ -131,7 +131,7 @@ describe('ConditionBuilder', () => {
       active: null,
     })
 
-    expect(cb.toJSON()).toEqual({
+    expect(cb.build()).toEqual({
       $and: [
         { field: 'name', op: '$eq', value: 'bob' },
         { field: 'age', op: '$gt', value: 21 },
@@ -189,7 +189,7 @@ describe('ConditionBuilder', () => {
       field9: { op: '$notin', value: [40, 50] },
     })
 
-    expect(cb.toJSON()).toEqual({
+    expect(cb.build()).toEqual({
       $and: [
         { field: 'field1', op: '$gt', value: 10 },
         { field: 'field2', op: '$lt', value: 20 },
@@ -218,7 +218,7 @@ describe('ConditionBuilder', () => {
         })
       )
 
-    expect(cb.toJSON()).toEqual({
+    expect(cb.build()).toEqual({
       $and: [
         { field: 'status', op: '$eq', value: 'active' },
         { field: 'age', op: '$gte', value: 18 },
@@ -241,7 +241,7 @@ describe('ConditionBuilder', () => {
       code: { $notlike: 'TEST%' },
     })
 
-    expect(cb.toJSON()).toEqual({
+    expect(cb.build()).toEqual({
       $and: [
         { field: 'email', op: '$like', value: '%@example.com' },
         { field: 'domain', op: '$like', value: 'example.%' },
@@ -287,7 +287,7 @@ describe('ConditionBuilder', () => {
       .andGroup(() => {})
       .orGroup(() => {})
 
-    expect(cb.toJSON()).toEqual({
+    expect(cb.build()).toEqual({
       $and: [
         { $and: [] },
         { $or: [] },
@@ -308,7 +308,7 @@ describe('ConditionBuilder', () => {
         )
     )
 
-    expect(cb.toJSON()).toEqual({
+    expect(cb.build()).toEqual({
       $and: [
         {
           $and: [
@@ -330,7 +330,7 @@ describe('ConditionBuilder', () => {
   it('handles case-insensitive operator strings', () => {
     const cb = ConditionBuilder.create().where('field1', '$gt', 1).where('field2', '$eq', 2).where('field3', '$in', [3]).where('field4', '$like', '4')
 
-    expect(cb.toJSON()).toEqual({
+    expect(cb.build()).toEqual({
       $and: [
         { field: 'field1', op: '$gt', value: 1 },
         { field: 'field2', op: '$eq', value: 2 },

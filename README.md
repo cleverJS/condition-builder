@@ -1,23 +1,28 @@
 # Condition Builder
 
-A small, type-safe TypeScript library for building portable, JSON-serializable condition objects used in queries and filters. Features strict type checking for operators and their values.
+A small, type-safe TypeScript library for building **ORM-agnostic**, portable, JSON-serializable condition objects for queries and filters. Write your query logic once and use it with any database layer - Knex, MikroORM, or your custom implementation. The library provides strict type checking for operators and their values, making query construction safe and predictable.
 
 ## Key Features
-- **Type-Safe Operators**: All operators ($eq, $gt, $like, etc.) are strictly typed with their allowed value types
-- **Fluent Builder API**: Chain-friendly builder pattern for constructing condition trees
-- **Flexible Input**: Supports multiple input formats with type validation
+- **ORM/Database Agnostic**: Unified abstraction layer - write conditions once, use with any query builder or ORM
+- **No Vendor Lock-In**: Easily switch between Knex, MikroORM, or implement custom adapters for any database layer
+- **Type-Safe Operators**: All operators (`$eq`, `$gt`, `$like`, etc.) are strictly typed with their allowed value types
+- **Typed Schema Support**: Optional generic type parameter for field name autocomplete and type checking
+- **Fluent Builder API**: Chainable builder pattern for constructing condition trees
+- **JSON Serializable**: Store, transmit, and cache conditions - perfect for APIs, saved filters, and dynamic queries
+- **Flexible Input**: Supports multiple input formats with runtime validation
 - **AND/OR Groups**: Create nested condition groups with proper type inference
+- **Built-in Adapters**: Out-of-the-box support for Knex and MikroORM
 
 ## Installation
 ```bash
-git clone <repo>
-cd condition_builder
-pnpm install  # or npm install
+npm install @cleverJS/condition-builder
+# or
+pnpm install @cleverJS/condition-builder
 ```
 
 ## Quick Start
 ```typescript
-import { ConditionBuilder } from './src'
+import { ConditionBuilder } from '@cleverJS/condition-builder'
 
 // Simple conditions with fluent API
 const builder1 = ConditionBuilder.create()
@@ -26,27 +31,40 @@ const builder1 = ConditionBuilder.create()
   .where('tags').in(['A', 'B'])       // string[] for $in
   .where('range').between(1, 10)      // numbers for $between
 
+// With typed schema for autocomplete
+interface UserSchema {
+  name: string
+  age: number
+  email: string
+  isActive: boolean
+}
+
+const builder2 = ConditionBuilder.create<UserSchema>()
+  .where('name').eq('John')           // ✅ 'name' is autocompleted
+  .where('age').gt(21)                // ✅ 'age' is autocompleted
+  .where('email').ilike('%@example.com')
+
 // Object notation with type checking
-const builder2 = ConditionBuilder.create()
+const builder3 = ConditionBuilder.create()
   .where({
-    status: 'active',                 // simple value -> $eq
+    status: 'active',                 // simple value → $eq
     age: { $gt: 21 },                 // typed operators
-    tags: ['A', 'B'],                // array -> $in
+    tags: ['A', 'B'],                 // array → $in
     search: { $like: '%term%' },      // pattern match
     range: { $between: [1, 10] }      // typed tuples
   })
 
 // Object notation on create with type checking
-const builder3 = ConditionBuilder.create({
-  status: 'active',                 // simple value -> $eq
-  age: { $gt: 21 },                 // typed operators
-  tags: ['A', 'B'],                // array -> $in
-  search: { $like: '%term%' },      // pattern match
-  range: { $between: [1, 10] }      // typed tuples
+const builder4 = ConditionBuilder.create({
+  status: 'active',                   // simple value → $eq
+  age: { $gt: 21 },                   // typed operators
+  tags: ['A', 'B'],                   // array → $in
+  search: { $like: '%term%' },        // pattern match
+  range: { $between: [1, 10] }        // typed tuples
 })
 
 // Get JSON output
-const json = builder2.toJSON()
+const json = builder3.build()
 ```
 
 ## Type Safety
@@ -60,8 +78,12 @@ ConditionBuilder.create().where({
   tags: { $in: ['active', 'vip'] },    // string[] for $in
   range: { $between: [1, 10] },        // [number, number] for $between
   status: { $eq: null },               // null allowed for $eq
-  deleted: { $isnull: true }           // only true for $isnull
 })
+
+// For null checks, just specify the field
+ConditionBuilder.create()
+  .where('deleted').isNull()           // No value needed
+  .where('active').isNotNull()         // No value needed
 
 // ❌ These show TypeScript errors
 ConditionBuilder.create().where({
@@ -69,7 +91,6 @@ ConditionBuilder.create().where({
   age: { $gt: true },                  // Error: boolean not allowed for $gt
   tags: { $in: 'not-array' },          // Error: string not allowed for $in
   range: { $between: [true, false] },  // Error: boolean not allowed in $between
-  status: { $isnull: false }           // Error: only true allowed for $isnull
 })
 ```
 
@@ -77,6 +98,8 @@ ConditionBuilder.create().where({
 
 ### ConditionBuilder
 - `create()`: Start a new condition builder
+- `create(field, op, value)`: Start with a single condition
+- `create(descriptor)`: Start with multiple conditions from an object
 - `where()`: Add conditions in multiple formats:
   ```typescript
   where(field: string): FieldBuilder                    // Chain operators
@@ -85,7 +108,7 @@ ConditionBuilder.create().where({
   ```
 - `andGroup(callback)`: Create nested AND group
 - `orGroup(callback)`: Create nested OR group
-- `toJSON()`: Get the final condition object
+- `build()`: Get the final condition object
 
 ### Operators
 All operators are prefixed with $ and strictly typed:
@@ -95,8 +118,8 @@ All operators are prefixed with $ and strictly typed:
 - `$ne`: Not equals (any value)
 
 #### Comparison Operators
-- `$gt`, `$gte`: Greater than (number/string/date)
-- `$lt`, `$lte`: Less than (number/string/date)
+- `$gt`, `$gte`: Greater than (number/string/Date)
+- `$lt`, `$lte`: Less than (number/string/Date)
 
 #### Pattern Operators
 - `$like`: Pattern match (string only)
@@ -112,8 +135,8 @@ All operators are prefixed with $ and strictly typed:
 - `$notbetween`: Not between range ([start, end])
 
 #### Null Operators
-- `$isnull`: Is null (true only)
-- `$notnull`: Is not null (true only)
+- `$isnull`: Is null (no value needed)
+- `$notnull`: Is not null (no value needed)
 
 ## Examples
 
@@ -148,22 +171,105 @@ const conditions = {
   // Arrays and ranges
   tags: { $in: ['premium', 'trial'] },
   range: { $between: [0, 999] },
-  
-  // Null checks
-  deleted: { $isnull: true }
 }
 
 const builder = ConditionBuilder.create().where(conditions)
 ```
 
-## Type Definitions
-The library exports TypeScript types for custom use:
+### Using Null Checks
+```typescript
+const builder = ConditionBuilder.create()
+  .where('deletedAt').isNull()        // Find non-deleted records
+  .where('email').isNotNull()         // Find records with email
+  .where('status').eq('active')
+```
+
+## Adapters
+
+The library includes adapters to convert condition objects into query builders:
 
 ```typescript
-import type {
-  Operator,              // Union of all operator literals
-  WhereDescriptor,       // Object notation type
-  ConditionJson,         // Output JSON type
-  OperatorValueType      // Operator to value type mapping
-} from './src/types'
+import { 
+  KnexConditionAdapter, 
+  MikroOrmConditionAdapter 
+} from '@cleverJS/condition-builder'
+
+// Use with Knex
+const knexAdapter = new KnexConditionAdapter()
+const knexQuery = knex('users')
+knexAdapter.apply(knexQuery, conditionBuilder.build())
+
+// Use with MikroORM
+const mikroAdapter = new MikroOrmConditionAdapter()
+const where = mikroAdapter.convert(conditionBuilder.build())
+await em.find(User, where)
+```
+
+## Typed Schema Support
+
+Get autocomplete and type checking for field names by providing a schema interface:
+
+```typescript
+// Define your schema
+interface UserSchema {
+  id: number
+  name: string
+  email: string
+  age: number
+  isActive: boolean
+  createdAt: Date
+}
+
+// Use it with ConditionBuilder
+const condition = ConditionBuilder.create<UserSchema>()
+  .where('name').eq('John')    // ✅ 'name' is autocompleted
+  .where('age').gt(18)          // ✅ 'age' is autocompleted
+  .where('email').ilike('%@example.com')  // ✅ Field names are type-checked
+
+// TypeScript will catch typos:
+// .where('nam').eq('John')     // ❌ Error: Property 'nam' does not exist
+```
+
+**Benefits:**
+- ✅ **ORM/Database Agnostic**: Build queries once, use everywhere - the same condition object works with Knex, MikroORM, or any custom implementation via adapters
+- ✅ **JSON Serializable**: Conditions can be stored, transmitted over network, or cached - perfect for API filters, saved searches, or dynamic queries
+- ✅ **Type-Safe**: Compile-time validation of field names, operators, and values prevents runtime errors
+- ✅ **IDE Autocomplete**: Full IntelliSense support for field names when using typed schemas
+- ✅ **Consistent API**: Same intuitive builder pattern regardless of your underlying database or ORM
+- ✅ **Testable**: Mock and test query logic without database dependencies
+- ✅ **Better Refactoring**: Schema changes are caught at compile-time across your entire codebase
+- ✅ **Self-Documenting**: Type definitions serve as living documentation of your data model
+
+## Output Format
+
+The library produces JSON objects with the following structure:
+
+```typescript
+// Simple AND conditions
+{
+  $and: [
+    { field: 'age', op: '$gt', value: 18 },
+    { field: 'status', op: '$eq', value: 'active' }
+  ]
+}
+
+// Nested groups
+{
+  $and: [
+    { field: 'role', op: '$eq', value: 'admin' },
+    {
+      $or: [
+        { field: 'vip', op: '$eq', value: true },
+        { field: 'level', op: '$gte', value: 5 }
+      ]
+    }
+  ]
+}
+
+// Null checks
+{
+  $and: [
+    { field: 'deletedAt', op: '$isnull' }
+  ]
+}
 ```

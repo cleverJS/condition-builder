@@ -36,6 +36,7 @@ export type OperatorValueType = {
   // Array operators
   '$in': SimpleValueArray
   '$notin': SimpleValueArray
+  '$nin': SimpleValueArray
   // Between operators
   '$between': BetweenValue
   '$notbetween': BetweenValue

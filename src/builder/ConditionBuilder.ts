@@ -2,7 +2,7 @@ import { WhereDescriptor } from './interfaces/descriptors'
 import { FieldBuilder } from './FieldBuilder'
 import { ConditionGroup, ConditionItem, Operator, SimpleValue } from './interfaces/types'
 
-export class ConditionBuilder {
+export class ConditionBuilder<TSchema = Record<string, any>> {
   readonly #root: ConditionGroup
   readonly #current: ConditionGroup[] = []
 
@@ -38,54 +38,54 @@ export class ConditionBuilder {
     this.#current = [this.#root]
   }
 
-  public static create(): ConditionBuilder
-  public static create(field: string, op: Operator, value?: unknown): ConditionBuilder
-  public static create(obj: WhereDescriptor): ConditionBuilder
-  public static create(arg?: string | WhereDescriptor, op?: Operator, value?: unknown): ConditionBuilder {
-    const builder = new ConditionBuilder()
+  public static create<TSchema = Record<string, any>>(): ConditionBuilder<TSchema>
+  public static create<TSchema = Record<string, any>>(field: keyof TSchema & string, op: Operator, value?: unknown): ConditionBuilder<TSchema>
+  public static create<TSchema = Record<string, any>>(obj: WhereDescriptor<TSchema>): ConditionBuilder<TSchema>
+  public static create<TSchema = Record<string, any>>(arg?: string | WhereDescriptor<TSchema>, op?: Operator, value?: unknown): ConditionBuilder<TSchema> {
+    const builder = new ConditionBuilder<TSchema>()
 
     if (ConditionBuilder.#isWhereDescriptor(arg)) {
       return builder.where(builder.#deepClone(arg))
     }
 
     if (arg && op !== undefined) {
-      return builder.where(arg, op, builder.#deepClone(value))
+      return builder.where(arg as keyof TSchema & string, op, builder.#deepClone(value))
     }
 
     return builder
   }
 
-  public where(field: string): FieldBuilder
-  public where(field: string, op: Operator, value?: unknown): ConditionBuilder
-  public where(obj: WhereDescriptor): ConditionBuilder
-  public where(arg: string | WhereDescriptor, op?: Operator, value?: unknown): ConditionBuilder | FieldBuilder {
+  public where(field: keyof TSchema & string): FieldBuilder<TSchema>
+  public where(field: keyof TSchema & string, op: Operator, value?: unknown): ConditionBuilder<TSchema>
+  public where(obj: WhereDescriptor<TSchema>): ConditionBuilder<TSchema>
+  public where(arg: (keyof TSchema & string) | WhereDescriptor<TSchema>, op?: Operator, value?: unknown): ConditionBuilder<TSchema> | FieldBuilder<TSchema> {
     if (ConditionBuilder.#isWhereDescriptor(arg)) {
       return this.#handleWhereDescriptor(this.#deepClone(arg))
     }
 
     if (op === undefined) {
-      return new FieldBuilder(this, arg)
+      return new FieldBuilder<TSchema>(this, arg as string)
     }
 
-    return this.#handleOperatorCondition(arg, op, this.#deepClone(value))
+    return this.#handleOperatorCondition(arg as string, op, this.#deepClone(value))
   }
 
-  public orGroup(callback: (builder: ConditionBuilder) => void): ConditionBuilder {
+  public orGroup(callback: (builder: ConditionBuilder<TSchema>) => void): ConditionBuilder<TSchema> {
     return this.#createGroup('or', callback)
   }
 
-  public andGroup(callback: (builder: ConditionBuilder) => void): ConditionBuilder {
+  public andGroup(callback: (builder: ConditionBuilder<TSchema>) => void): ConditionBuilder<TSchema> {
     return this.#createGroup('and', callback)
   }
 
-  public addCondition(condition: ConditionItem): ConditionBuilder {
+  public addCondition(condition: ConditionItem): ConditionBuilder<TSchema> {
     const group = this.#getCurrentGroup()
     const key = group.$and ? '$and' : '$or'
     group[key]!.push(this.#deepClone(condition))
     return this
   }
 
-  public toJSON(): ConditionGroup {
+  public build(): ConditionGroup {
     return this.#deepClone(this.#root)
   }
 
@@ -101,15 +101,15 @@ export class ConditionBuilder {
     return value === null || typeof value !== 'object' || value instanceof Date
   }
 
-  #handleWhereDescriptor(descriptor: WhereDescriptor): ConditionBuilder {
+  #handleWhereDescriptor(descriptor: WhereDescriptor<TSchema>): ConditionBuilder<TSchema> {
     Object.entries(descriptor).forEach(([key, value]) => {
       if (this.#isSimpleValue(value)) {
-        new FieldBuilder(this, key).eq(value)
+        new FieldBuilder<TSchema>(this, key).eq(value)
         return
       }
 
       if (Array.isArray(value)) {
-        new FieldBuilder(this, key).in(value)
+        new FieldBuilder<TSchema>(this, key).in(value)
         return
       }
 
@@ -124,8 +124,8 @@ export class ConditionBuilder {
     return allOperators.includes(key) || key === 'op'
   }
 
-  #handleOperatorCondition(field: string, op: string, value: unknown): ConditionBuilder {
-    const fb = new FieldBuilder(this, field)
+  #handleOperatorCondition(field: string, op: string, value: unknown): ConditionBuilder<TSchema> {
+    const fb = new FieldBuilder<TSchema>(this, field)
     const mapping = this.#getMappedOperator(op)
 
     if (!mapping) {
@@ -169,11 +169,11 @@ export class ConditionBuilder {
       if ((value.op === '$between' || value.op === '$notbetween') && Array.isArray(value.value)) {
         const [start, end] = value.value
         if (this.#isDateOrNumberOrString(start) && this.#isDateOrNumberOrString(end)) {
-          this.where(key, value.op as Operator, [start, end])
+          this.where(key as keyof TSchema & string, value.op as Operator, [start, end])
           return
         }
       }
-      this.where(key, value.op as Operator, value.value)
+      this.where(key as keyof TSchema & string, value.op as Operator, value.value)
       return
     }
 
@@ -190,12 +190,12 @@ export class ConditionBuilder {
     if ((opKey === '$between' || opKey === '$notbetween') && Array.isArray(opValue)) {
       const [start, end] = opValue
       if (this.#isDateOrNumberOrString(start) && this.#isDateOrNumberOrString(end)) {
-        this.where(key, opKey as Operator, [start, end])
+        this.where(key as keyof TSchema & string, opKey as Operator, [start, end])
         return
       }
     }
 
-    this.where(key, opKey as Operator, opValue)
+    this.where(key as keyof TSchema & string, opKey as Operator, opValue)
   }
 
   #isExplicitOperator(value: Record<string, unknown>): boolean {
@@ -216,7 +216,7 @@ export class ConditionBuilder {
     return value.every((v) => typeof v === 'string' || typeof v === 'number')
   }
 
-  #createGroup(type: 'and' | 'or', callback: (builder: ConditionBuilder) => void): ConditionBuilder {
+  #createGroup(type: 'and' | 'or', callback: (builder: ConditionBuilder<TSchema>) => void): ConditionBuilder<TSchema> {
     const group: ConditionGroup = type === 'and' ? { $and: [] } : { $or: [] }
     const currentGroup = this.#getCurrentGroup()
     const key = currentGroup.$and ? '$and' : '$or'
