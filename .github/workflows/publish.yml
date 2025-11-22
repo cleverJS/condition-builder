@@ -119,5 +119,4 @@ jobs:
           NODE_ENV: production
         run: |
           echo "📦 Publishing to GitHub Packages..."
-          pnpm publish --tag=latest --no-git-checks --provenance --ignore-scripts
-
+          pnpm publish --tag=latest --access public --no-git-checks --provenance --ignore-scripts
