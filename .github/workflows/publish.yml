@@ -109,12 +109,15 @@ jobs:
         if: inputs.dry_run == true
         run: |
           echo "🔍 Dry run mode - skipping actual publish"
-          pnpm publish --dry-run --no-git-checks
+          pnpm publish --dry-run --no-git-checks --ignore-scripts
+        env:
+          NODE_ENV: production
       - name: Publish to GitHub Packages
         if: inputs.dry_run != true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_ENV: production
         run: |
           echo "📦 Publishing to GitHub Packages..."
-          pnpm publish --tag=latest --no-git-checks --provenance
+          pnpm publish --tag=latest --no-git-checks --provenance --ignore-scripts
 
