@@ -122,7 +122,6 @@ ConditionBuilder.create().where({
 - `create()`: Start a new condition builder
 - `create(field, op, value)`: Start with a single condition
 - `create(descriptor)`: Start with multiple conditions from an object
-- `create(condition)`: Start with an existing `ConditionGroup` or `ConditionItem`
 - `from(condition)`: Static method to create a builder from an existing `ConditionGroup` or `ConditionItem`
 - `where()`: Add conditions in multiple formats:
   ```typescript

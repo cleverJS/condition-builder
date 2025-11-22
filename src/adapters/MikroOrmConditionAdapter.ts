@@ -4,10 +4,27 @@ import { ConditionGroup, ConditionItem } from '../builder'
 
 import { ConditionSerializer } from './interfaces/ConditionAdapter'
 
+// Runtime check for @mikro-orm/core availability
+let mikroOrmAvailable = true
+try {
+  require.resolve('@mikro-orm/core')
+} catch {
+  mikroOrmAvailable = false
+}
+
 /**
  * Adapter to convert ConditionGroup or ConditionItem to MikroORM FilterQuery format
  */
 export class MikroOrmConditionAdapter implements ConditionSerializer<FilterQuery<unknown>> {
+  constructor() {
+    if (!mikroOrmAvailable) {
+      throw new Error(
+        'MikroOrmConditionAdapter requires the "@mikro-orm/core" package to be installed. ' +
+          'Install it with: npm install @mikro-orm/core or pnpm add @mikro-orm/core',
+      )
+    }
+  }
+
   /**
    * Convert a ConditionGroup or ConditionItem to MikroORM FilterQuery
    */

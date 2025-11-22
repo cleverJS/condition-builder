@@ -4,6 +4,14 @@ import { ConditionGroup, ConditionItem } from '../builder'
 
 import { ConditionSerializer } from './interfaces/ConditionAdapter'
 
+// Runtime check for knex availability
+let knexAvailable = true
+try {
+  require.resolve('knex')
+} catch {
+  knexAvailable = false
+}
+
 /**
  * Adapter to convert Condition to Knex QueryBuilder
  *
@@ -16,6 +24,15 @@ export type KnexConditionApplier = (qb: Knex.QueryBuilder) => Knex.QueryBuilder
  * Adapter to convert ConditionGroup to Knex QueryBuilder conditions
  */
 export class KnexConditionAdapter implements ConditionSerializer<KnexConditionApplier> {
+  constructor() {
+    if (!knexAvailable) {
+      throw new Error(
+        'KnexConditionAdapter requires the "knex" package to be installed. ' +
+          'Install it with: npm install knex or pnpm add knex',
+      )
+    }
+  }
+
   public serialize(condition: ConditionGroup | ConditionItem): KnexConditionApplier {
     return (qb: Knex.QueryBuilder) => {
       if (this.isConditionGroup(condition)) {

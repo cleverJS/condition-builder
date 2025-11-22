@@ -28,13 +28,25 @@
     "prebuild": "pnpm clean",
     "clean": "rm -rf dist tsconfig.build.tsbuildinfo",
     "prepublishOnly": "npm run build",
-    "test": "vitest --config vitest.config.ts",
+    "tests": "vitest --config vitest.config.ts",
     "test-coverage": "vitest run --coverage --config vitest.config.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "peerDependencies": {
+    "knex": ">=3.0.0",
+    "@mikro-orm/core": ">=6.0.0"
+  },
+  "peerDependenciesMeta": {
+    "knex": {
+      "optional": true
+    },
+    "@mikro-orm/core": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.39.1",
