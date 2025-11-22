@@ -33,15 +33,33 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
     },
   } as const
 
-  public constructor() {
-    this.#root = { $and: [] }
+  public constructor(initialCondition?: ConditionGroup | ConditionItem) {
+    if (initialCondition) {
+      // If it's a ConditionGroup, use it as root
+      if ('$and' in initialCondition || '$or' in initialCondition) {
+        this.#root = this.#deepClone(initialCondition as ConditionGroup)
+      } else {
+        // If it's a ConditionItem, wrap it in an $and group
+        this.#root = { $and: [this.#deepClone(initialCondition as ConditionItem)] }
+      }
+    } else {
+      this.#root = { $and: [] }
+    }
     this.#current = [this.#root]
   }
 
   public static create<TSchema = Record<string, any>>(): ConditionBuilder<TSchema>
   public static create<TSchema = Record<string, any>>(field: keyof TSchema & string, op: Operator, value?: unknown): ConditionBuilder<TSchema>
   public static create<TSchema = Record<string, any>>(obj: WhereDescriptor<TSchema>): ConditionBuilder<TSchema>
-  public static create<TSchema = Record<string, any>>(arg?: string | WhereDescriptor<TSchema>, op?: Operator, value?: unknown): ConditionBuilder<TSchema> {
+  // public static create<TSchema = Record<string, any>>(condition: ConditionGroup | ConditionItem): ConditionBuilder<TSchema>
+  public static create<TSchema = Record<string, any>>(arg?: any, op?: Operator, value?: unknown): ConditionBuilder<TSchema> {
+    // potential bug if it would be WhereDescriptor with field and op
+    // if (arg && typeof arg === 'object' && !Array.isArray(arg)) {
+    //   if ('$and' in arg || '$or' in arg || ('field' in arg && 'op' in arg)) {
+    //     return new ConditionBuilder<TSchema>(arg as ConditionGroup | ConditionItem)
+    //   }
+    // }
+
     const builder = new ConditionBuilder<TSchema>()
 
     if (ConditionBuilder.#isWhereDescriptor(arg)) {
@@ -53,6 +71,15 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
     }
 
     return builder
+  }
+
+  /**
+   * Create a ConditionBuilder from an existing ConditionGroup or ConditionItem
+   * This is useful for deserializers that want to convert their format to conditions first,
+   * then provide a builder for further modifications
+   */
+  public static from<TSchema = Record<string, any>>(condition: ConditionGroup | ConditionItem): ConditionBuilder<TSchema> {
+    return new ConditionBuilder<Record<string, any>>(condition)
   }
 
   public where(field: keyof TSchema & string): FieldBuilder<TSchema>
@@ -85,8 +112,58 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
     return this
   }
 
-  public build(): ConditionGroup {
-    return this.#deepClone(this.#root)
+  /**
+   * Add a ConditionGroup or ConditionItem directly to the current group
+   * This is useful for adapters that need to add pre-built conditions
+   */
+  public add(condition: ConditionGroup | ConditionItem): ConditionBuilder<TSchema> {
+    const group = this.#getCurrentGroup()
+    const key = group.$and ? '$and' : '$or'
+    group[key]!.push(this.#deepClone(condition))
+    return this
+  }
+
+  public build(): ConditionGroup | ConditionItem {
+    const cloned = this.#deepClone(this.#root)
+    return this.#unwrapSingleCondition(cloned)
+  }
+
+  /**
+   * Unwrap single conditions from unnecessary $and or $or groups
+   * For example: { $and: [{ field: 'name', op: '$eq', value: 'John' }] }
+   * becomes: { field: 'name', op: '$eq', value: 'John' }
+   */
+  #unwrapSingleCondition(group: ConditionGroup | ConditionItem): ConditionGroup | ConditionItem {
+    // If it's not a group, return as is
+    if (!('$and' in group) && !('$or' in group)) {
+      return group
+    }
+
+    const key = '$and' in group ? '$and' : '$or'
+    const conditions = group[key]
+
+    // If there's exactly one condition, unwrap it
+    if (conditions && conditions.length === 1) {
+      const singleCondition = conditions[0]
+      // If the single condition is also a group, recursively unwrap it
+      if ('$and' in singleCondition || '$or' in singleCondition) {
+        return this.#unwrapSingleCondition(singleCondition)
+      }
+      // Otherwise return the single condition item
+      return singleCondition
+    }
+
+    // For multiple conditions, recursively unwrap nested groups
+    if (conditions && conditions.length > 1) {
+      group[key] = conditions.map((condition) => {
+        if ('$and' in condition || '$or' in condition) {
+          return this.#unwrapSingleCondition(condition)
+        }
+        return condition
+      }) as Array<ConditionGroup | ConditionItem>
+    }
+
+    return group
   }
 
   static #isWhereDescriptor(arg: unknown): arg is WhereDescriptor {

@@ -58,7 +58,7 @@ export class FieldBuilder<TSchema = Record<string, any>> {
       throw new Error(`Value is required for operator ${op}`)
     }
 
-    if (op === '$in' || op === '$notin') {
+    if (op === '$in' || op === '$notin' || op === '$nin') {
       if (!Array.isArray(value) || !value.every(v => typeof v === 'string' || typeof v === 'number')) {
         throw new Error(`${op} requires an array of strings or numbers`)
       }

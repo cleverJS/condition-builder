@@ -1,6 +1,9 @@
 # Condition Builder
 
-A small, type-safe TypeScript library for building **ORM-agnostic**, portable, JSON-serializable condition objects for queries and filters. Write your query logic once and use it with any database layer - Knex, MikroORM, or your custom implementation. The library provides strict type checking for operators and their values, making query construction safe and predictable.
+A small, type-safe TypeScript library for building **ORM-agnostic**, portable, JSON-serializable condition
+objects for queries and filters. Write your query logic once and use it with any database layer - Knex, MikroORM,
+or your custom implementation. The library provides strict type checking for operators and their values, making
+query construction safe and predictable.
 
 ## Key Features
 - **ORM/Database Agnostic**: Unified abstraction layer - write conditions once, use with any query builder or ORM
@@ -11,7 +14,7 @@ A small, type-safe TypeScript library for building **ORM-agnostic**, portable, J
 - **JSON Serializable**: Store, transmit, and cache conditions - perfect for APIs, saved filters, and dynamic queries
 - **Flexible Input**: Supports multiple input formats with runtime validation
 - **AND/OR Groups**: Create nested condition groups with proper type inference
-- **Built-in Adapters**: Out-of-the-box support for Knex and MikroORM
+- **Built-in Adapters**: Out-of-the-box support for Knex, MikroORM, and Kendo UI filters
 
 ## Installation
 ```bash
@@ -25,13 +28,16 @@ pnpm install @cleverJS/condition-builder
 import { ConditionBuilder } from '@cleverJS/condition-builder'
 
 // Simple conditions with fluent API
-const builder1 = ConditionBuilder.create()
+const builder = ConditionBuilder.create()
   .where('age').gt(21)                // number for $gt
   .where('name').like('%John%')       // string for $like
   .where('tags').in(['A', 'B'])       // string[] for $in
   .where('range').between(1, 10)      // numbers for $between
+```
 
-// With typed schema for autocomplete
+```typescript
+import { ConditionBuilder } from '@cleverJS/condition-builder'
+
 interface UserSchema {
   name: string
   age: number
@@ -39,13 +45,17 @@ interface UserSchema {
   isActive: boolean
 }
 
-const builder2 = ConditionBuilder.create<UserSchema>()
+const builder = ConditionBuilder.create<UserSchema>()
   .where('name').eq('John')           // ✅ 'name' is autocompleted
   .where('age').gt(21)                // ✅ 'age' is autocompleted
   .where('email').ilike('%@example.com')
+```
+
+```typescript
+import { ConditionBuilder } from '@cleverJS/condition-builder'
 
 // Object notation with type checking
-const builder3 = ConditionBuilder.create()
+const builder = ConditionBuilder.create()
   .where({
     status: 'active',                 // simple value → $eq
     age: { $gt: 21 },                 // typed operators
@@ -53,18 +63,26 @@ const builder3 = ConditionBuilder.create()
     search: { $like: '%term%' },      // pattern match
     range: { $between: [1, 10] }      // typed tuples
   })
+```
+
+```typescript
+import { ConditionBuilder } from '@cleverJS/condition-builder'
 
 // Object notation on create with type checking
-const builder4 = ConditionBuilder.create({
+const builder = ConditionBuilder.create({
   status: 'active',                   // simple value → $eq
   age: { $gt: 21 },                   // typed operators
   tags: ['A', 'B'],                   // array → $in
   search: { $like: '%term%' },        // pattern match
   range: { $between: [1, 10] }        // typed tuples
 })
+```
+
+```typescript
+import { ConditionBuilder } from '@cleverJS/condition-builder'
 
 // Get JSON output
-const json = builder3.build()
+const json = builder.build()
 ```
 
 ## Type Safety
@@ -79,12 +97,16 @@ ConditionBuilder.create().where({
   range: { $between: [1, 10] },        // [number, number] for $between
   status: { $eq: null },               // null allowed for $eq
 })
+```
 
+```typescript
 // For null checks, just specify the field
 ConditionBuilder.create()
   .where('deleted').isNull()           // No value needed
   .where('active').isNotNull()         // No value needed
+```
 
+```typescript
 // ❌ These show TypeScript errors
 ConditionBuilder.create().where({
   name: { $like: 123 },                // Error: number not allowed for $like
@@ -100,6 +122,8 @@ ConditionBuilder.create().where({
 - `create()`: Start a new condition builder
 - `create(field, op, value)`: Start with a single condition
 - `create(descriptor)`: Start with multiple conditions from an object
+- `create(condition)`: Start with an existing `ConditionGroup` or `ConditionItem`
+- `from(condition)`: Static method to create a builder from an existing `ConditionGroup` or `ConditionItem`
 - `where()`: Add conditions in multiple formats:
   ```typescript
   where(field: string): FieldBuilder                    // Chain operators
@@ -109,6 +133,19 @@ ConditionBuilder.create().where({
 - `andGroup(callback)`: Create nested AND group
 - `orGroup(callback)`: Create nested OR group
 - `build()`: Get the final condition object
+
+**Example: Initialize from existing conditions**
+```typescript
+const existing = { $and: [{ field: 'status', op: '$eq', value: 'active' }] }
+const builder1 = ConditionBuilder.from(existing)
+builder1.where('age').gt(18) // Continue building with any field name
+
+// Works with ConditionItem too
+const item = { field: 'name', op: '$eq', value: 'John' }
+const builder2 = ConditionBuilder.from(item)
+builder2.where('age').gt(21)
+builder2.where('deletedAt').isNull()
+```
 
 ### Operators
 All operators are prefixed with $ and strictly typed:
@@ -159,15 +196,15 @@ const builder = ConditionBuilder.create()
 const conditions = {
   // Simple equality
   status: 'active',
-  
+
   // Comparison with numbers
   age: { $gte: 18 },
   score: { $lt: 100 },
-  
+
   // Pattern matching
   email: { $like: '%@example.com' },
   name: { $ilike: 'john%' },
-  
+
   // Arrays and ranges
   tags: { $in: ['premium', 'trial'] },
   range: { $between: [0, 999] },
@@ -186,7 +223,9 @@ const builder = ConditionBuilder.create()
 
 ## Adapters
 
-The library includes adapters to convert condition objects into query builders:
+The library includes adapters to convert between external filter formats and condition objects:
+
+### Converting TO Database Queries (Serializers)
 
 ```typescript
 import { 
@@ -196,13 +235,126 @@ import {
 
 // Use with Knex
 const knexAdapter = new KnexConditionAdapter()
+const condition = ConditionBuilder.create()
+  .where('status').eq('active')
+  .where('age').gt(18)
+  .build()
+
+const applyConditions = knexAdapter.serialize(condition)
 const knexQuery = knex('users')
-knexAdapter.apply(knexQuery, conditionBuilder.build())
+applyConditions(knexQuery) // Applies conditions to Knex query
 
 // Use with MikroORM
 const mikroAdapter = new MikroOrmConditionAdapter()
-const where = mikroAdapter.convert(conditionBuilder.build())
+const where = mikroAdapter.serialize(condition)
 await em.find(User, where)
+```
+
+### Converting FROM External Formats (Deserializers)
+
+#### Kendo UI DataSource Filter Adapter
+
+Convert Kendo UI DataSource filters to a `ConditionBuilder`:
+
+```typescript
+import { KendoFilterAdapter } from '@cleverJS/condition-builder'
+
+const adapter = new KendoFilterAdapter()
+
+// Simple Kendo filter
+const kendoFilter = {
+  field: 'name',
+  operator: 'eq',
+  value: 'John'
+}
+
+// deserialize() returns a ConditionBuilder - you can continue building or get the final result
+const builder = adapter.deserialize(kendoFilter)
+const condition = builder.build()
+// Result: { field: 'name', op: '$eq', value: 'John' }
+
+// You can also continue building after deserialization
+const builder2 = adapter.deserialize(kendoFilter)
+builder2.where('age').gt(18) // Add more conditions
+const finalCondition = builder2.build()
+
+// Composite Kendo filter with logic
+const complexFilter = {
+  logic: 'and',
+  filters: [
+    { field: 'category', operator: 'eq', value: 'electronics' },
+    {
+      logic: 'or',
+      filters: [
+        { field: 'price', operator: 'lt', value: 100 },
+        { field: 'onSale', operator: 'eq', value: true }
+      ]
+    }
+  ]
+}
+
+const complexBuilder = adapter.deserialize(complexFilter)
+const conditionGroup = complexBuilder.build()
+// Result:
+// {
+//   $and: [
+//     { field: 'category', op: '$eq', value: 'electronics' },
+//     {
+//       $or: [
+//         { field: 'price', op: '$lt', value: 100 },
+//         { field: 'onSale', op: '$eq', value: true }
+//       ]
+//     }
+//   ]
+// }
+```
+
+**Supported Kendo Operators:**
+- `eq`, `neq` → `$eq`, `$ne`
+- `gt`, `gte`, `lt`, `lte` → `$gt`, `$gte`, `$lt`, `$lte`
+- `in` → `$in`
+- `contains` → `$ilike` with `%value%`
+- `doesnotcontain` → `$notlike` with `%value%`
+- `startswith` → `$ilike` with `value%`
+- `endswith` → `$ilike` with `%value`
+- `doesnotstartwith` → `$notlike` with `value%`
+- `doesnotendwith` → `$notlike` with `%value`
+- `isnull`, `isnotnull` → `$isnull`, `$notnull`
+- `isempty`, `isnotempty` → `$eq ''`, `$ne ''`
+- `isnullorempty` → `$or` group with `$isnull` and `$eq ''`
+- `isnotnullorempty` → `$and` group with `$notnull` and `$ne ''`
+
+**Note:** Operators are case-insensitive, so `EQ`, `eq`, and `Eq` are all treated the same.
+
+**Complete Example - API Endpoint:**
+
+```typescript
+import { KendoFilterAdapter, ConditionBuilder, KnexConditionAdapter } from '@cleverJS/condition-builder'
+
+// Express endpoint receiving Kendo UI Grid filter
+app.post('/api/products/filter', async (req, res) => {
+  const { filter } = req.body // Kendo filter from client
+  
+  // Convert Kendo filter to ConditionBuilder
+  const kendoAdapter = new KendoFilterAdapter()
+  const builder = kendoAdapter.deserialize(filter)
+  
+  // You can modify the builder before applying
+  // builder.where('deletedAt').isNull() // Add extra conditions if needed
+  
+  // Build the final condition
+  const condition = builder.build()
+  
+  // Use with Knex
+  const knexAdapter = new KnexConditionAdapter()
+  const applyConditions = knexAdapter.serialize(condition)
+  
+  const query = knex('products')
+  applyConditions(query)
+  
+  const results = await query
+  res.json(results)
+})
 ```
 
 ## Typed Schema Support

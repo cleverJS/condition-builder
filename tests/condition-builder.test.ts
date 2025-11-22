@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { ConditionBuilder } from '../src/builder/ConditionBuilder'
+import { ConditionBuilder, ConditionGroup, ConditionItem } from '../src'
 
 describe('ConditionBuilder', () => {
   it('builds simple eq condition', () => {
     const cb = ConditionBuilder.create().where('field1').eq(1)
-    expect(cb.build()).toEqual({
-      $and: [{ field: 'field1', op: '$eq', value: 1 }],
-    })
+    expect(cb.build()).toEqual({ field: 'field1', op: '$eq', value: 1 })
   })
 
   it('builds nested or group', () => {
@@ -34,12 +32,8 @@ describe('ConditionBuilder', () => {
 
     expect(cb.build()).toEqual({
       $and: [
-        {
-          $and: [
-            { field: 'a', op: '$eq', value: 1 },
-            { field: 'b', op: '$eq', value: 2 },
-          ],
-        },
+        { field: 'a', op: '$eq', value: 1 },
+        { field: 'b', op: '$eq', value: 2 },
       ],
     })
   })
@@ -89,11 +83,7 @@ describe('ConditionBuilder', () => {
   it('supports create(field, op, value) shorthand', () => {
     const cb = ConditionBuilder.create('age', '$gt', 21)
 
-    expect(cb.build()).toEqual({
-      $and: [
-        { field: 'age', op: '$gt', value: 21 },
-      ],
-    })
+    expect(cb.build()).toEqual({ field: 'age', op: '$gt', value: 21 })
   })
 
   it('supports where(objectDescriptor) to add many conditions', () => {
@@ -288,10 +278,7 @@ describe('ConditionBuilder', () => {
       .orGroup(() => {})
 
     expect(cb.build()).toEqual({
-      $and: [
-        { $and: [] },
-        { $or: [] },
-      ],
+      $and: [{ $and: [] }, { $or: [] }],
     })
   })
 
@@ -310,17 +297,11 @@ describe('ConditionBuilder', () => {
 
     expect(cb.build()).toEqual({
       $and: [
+        { field: 'field1', op: '$eq', value: 1 },
         {
-          $and: [
-            { field: 'field1', op: '$eq', value: 1 },
-            {
-              $or: [
-                { field: 'field2', op: '$eq', value: 2 },
-                {
-                  $and: [{ field: 'field3', op: '$eq', value: 3 }],
-                },
-              ],
-            },
+          $or: [
+            { field: 'field2', op: '$eq', value: 2 },
+            { field: 'field3', op: '$eq', value: 3 },
           ],
         },
       ],
@@ -389,5 +370,173 @@ describe('ConditionBuilder', () => {
         field: {},
       })
     ).toThrow()
+  })
+
+  describe('Initialize from existing ConditionGroup/ConditionItem', () => {
+    it('creates builder from a ConditionItem using from()', () => {
+      const item = { field: 'age', op: '$gt' as const, value: 18 }
+      const builder = ConditionBuilder.from(item)
+      const result = builder.build()
+
+      expect(result).toEqual({ field: 'age', op: '$gt', value: 18 })
+    })
+
+    it('creates builder from a ConditionGroup using from()', () => {
+      const group = {
+        $or: [
+          { field: 'premium', op: '$eq' as const, value: true },
+          { field: 'level', op: '$gte' as const, value: 5 },
+        ],
+      }
+      const builder = ConditionBuilder.from(group)
+      const result = builder.build()
+
+      expect(result).toEqual(group)
+    })
+
+    it('allows continuing to build after creating from ConditionItem', () => {
+      const item = { field: 'status', op: '$eq' as const, value: 'active' }
+      const builder = ConditionBuilder.from(item)
+      builder.where('age').gt(21)
+      builder.where('deletedAt').isNull()
+      const result = builder.build()
+
+      expect(result).toEqual({
+        $and: [
+          { field: 'status', op: '$eq', value: 'active' },
+          { field: 'age', op: '$gt', value: 21 },
+          { field: 'deletedAt', op: '$isnull' },
+        ],
+      })
+    })
+
+    it('allows continuing to build after creating from ConditionGroup', () => {
+      const group: ConditionGroup = {
+        $and: [
+          { field: 'category', op: '$eq' as const, value: 'electronics' },
+          { field: 'price', op: '$lt' as const, value: 100 },
+        ],
+      }
+      const builder = ConditionBuilder.from(group)
+      builder.where('inStock').eq(true)
+      builder.orGroup((g) => {
+        g.where('featured').eq(true)
+        g.where('onSale').eq(true)
+      })
+      const result = builder.build()
+
+      expect(result).toEqual({
+        $and: [
+          { field: 'category', op: '$eq', value: 'electronics' },
+          { field: 'price', op: '$lt', value: 100 },
+          { field: 'inStock', op: '$eq', value: true },
+          {
+            $or: [
+              { field: 'featured', op: '$eq', value: true },
+              { field: 'onSale', op: '$eq', value: true },
+            ],
+          },
+        ],
+      })
+    })
+
+    it('deep clones the input condition to prevent mutations', () => {
+      const originalGroup: ConditionGroup = {
+        $and: [{ field: 'status', op: '$eq' as const, value: 'active' }],
+      }
+      const builder = ConditionBuilder.from(originalGroup)
+      builder.where('age').gt(18)
+      const result = builder.build()
+
+      // Original should remain unchanged
+      expect(originalGroup).toEqual({
+        $and: [{ field: 'status', op: '$eq', value: 'active' }],
+      })
+      // Result should include the new condition
+      expect(result).toEqual({
+        $and: [
+          { field: 'status', op: '$eq', value: 'active' },
+          { field: 'age', op: '$gt', value: 18 },
+        ],
+      })
+    })
+
+    it('handles nested ConditionGroups', () => {
+      const nestedGroup: ConditionGroup = {
+        $and: [
+          { field: 'isActive', op: '$eq' as const, value: true },
+          {
+            $or: [
+              { field: 'premium', op: '$eq' as const, value: true },
+              { field: 'level', op: '$gte' as const, value: 5 },
+            ],
+          },
+        ],
+      }
+      const builder = ConditionBuilder.from(nestedGroup)
+      builder.where('deletedAt').isNull()
+      const result = builder.build()
+
+      expect(result).toEqual({
+        $and: [
+          { field: 'isActive', op: '$eq', value: true },
+          {
+            $or: [
+              { field: 'premium', op: '$eq', value: true },
+              { field: 'level', op: '$gte', value: 5 },
+            ],
+          },
+          { field: 'deletedAt', op: '$isnull' },
+        ],
+      })
+    })
+
+    it('works with complex nested structures', () => {
+      const complexCondition: ConditionGroup = {
+        $and: [
+          { field: 'category', op: '$in' as const, value: ['electronics', 'books'] },
+          {
+            $or: [
+              {
+                $and: [
+                  { field: 'price', op: '$gte' as const, value: 50 },
+                  { field: 'price', op: '$lte' as const, value: 200 },
+                ],
+              },
+              { field: 'onSale', op: '$eq' as const, value: true },
+            ],
+          },
+        ],
+      }
+      const builder = ConditionBuilder.from(complexCondition)
+      builder.andGroup((g) => {
+        g.where('brand').eq('Apple')
+        g.where('inStock').eq(true)
+      })
+      const result = builder.build()
+
+      expect(result).toEqual({
+        $and: [
+          { field: 'category', op: '$in', value: ['electronics', 'books'] },
+          {
+            $or: [
+              {
+                $and: [
+                  { field: 'price', op: '$gte', value: 50 },
+                  { field: 'price', op: '$lte', value: 200 },
+                ],
+              },
+              { field: 'onSale', op: '$eq', value: true },
+            ],
+          },
+          {
+            $and: [
+              { field: 'brand', op: '$eq', value: 'Apple' },
+              { field: 'inStock', op: '$eq', value: true },
+            ],
+          },
+        ],
+      })
+    })
   })
 })

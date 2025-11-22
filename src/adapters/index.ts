@@ -1,3 +1,5 @@
 export { KnexConditionAdapter } from './KnexConditionAdapter'
 export { MikroOrmConditionAdapter } from './MikroOrmConditionAdapter'
+export { KendoFilterAdapter } from './KendoFilterAdapter'
 export { ConditionAdapter, ConditionSerializer, ConditionDeserializer } from './interfaces/ConditionAdapter'
+export type { KendoFilter, IKendoItem, IKendoGroup, KendoOperator } from './KendoFilterAdapter'

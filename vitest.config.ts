@@ -7,6 +7,7 @@ export default defineConfig({
     globals: true,
     root: './',
     environment: 'node',
+    pool: 'threads',
   },
   plugins: [tsconfigPaths()],
   resolve: {
