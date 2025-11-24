@@ -1,6 +1,6 @@
-import { WhereDescriptor } from './interfaces/descriptors'
 import { FieldBuilder } from './FieldBuilder'
-import { ConditionGroup, ConditionItem, Operator, SimpleValue } from './interfaces/types'
+import { WhereDescriptor } from './interfaces/descriptors'
+import { Condition, ConditionGroup, ConditionItem, Operator, Range, SimpleValue } from './interfaces/types'
 
 export class ConditionBuilder<TSchema = Record<string, any>> {
   readonly #root: ConditionGroup
@@ -33,7 +33,7 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
     },
   } as const
 
-  public constructor(initialCondition?: ConditionGroup | ConditionItem) {
+  public constructor(initialCondition?: Condition) {
     if (initialCondition) {
       // If it's a ConditionGroup, use it as root
       if ('$and' in initialCondition || '$or' in initialCondition) {
@@ -51,12 +51,12 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
   public static create<TSchema = Record<string, any>>(): ConditionBuilder<TSchema>
   public static create<TSchema = Record<string, any>>(field: keyof TSchema & string, op: Operator, value?: unknown): ConditionBuilder<TSchema>
   public static create<TSchema = Record<string, any>>(obj: WhereDescriptor<TSchema>): ConditionBuilder<TSchema>
-  // public static create<TSchema = Record<string, any>>(condition: ConditionGroup | ConditionItem): ConditionBuilder<TSchema>
+  // public static create<TSchema = Record<string, any>>(condition: Condition): ConditionBuilder<TSchema>
   public static create<TSchema = Record<string, any>>(arg?: any, op?: Operator, value?: unknown): ConditionBuilder<TSchema> {
     // potential bug if it would be WhereDescriptor with field and op
     // if (arg && typeof arg === 'object' && !Array.isArray(arg)) {
     //   if ('$and' in arg || '$or' in arg || ('field' in arg && 'op' in arg)) {
-    //     return new ConditionBuilder<TSchema>(arg as ConditionGroup | ConditionItem)
+    //     return new ConditionBuilder<TSchema>(arg as Condition)
     //   }
     // }
 
@@ -78,23 +78,27 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
    * This is useful for deserializers that want to convert their format to conditions first,
    * then provide a builder for further modifications
    */
-  public static from<TSchema = Record<string, any>>(condition: ConditionGroup | ConditionItem): ConditionBuilder<TSchema> {
+  public static from<TSchema = Record<string, any>>(condition: Condition): ConditionBuilder<TSchema> {
     return new ConditionBuilder<Record<string, any>>(condition)
   }
 
   public where(field: keyof TSchema & string): FieldBuilder<TSchema>
   public where(field: keyof TSchema & string, op: Operator, value?: unknown): ConditionBuilder<TSchema>
   public where(obj: WhereDescriptor<TSchema>): ConditionBuilder<TSchema>
-  public where(arg: (keyof TSchema & string) | WhereDescriptor<TSchema>, op?: Operator, value?: unknown): ConditionBuilder<TSchema> | FieldBuilder<TSchema> {
+  public where(
+    arg: (keyof TSchema & string) | WhereDescriptor<TSchema>,
+    op?: Operator,
+    value?: unknown
+  ): ConditionBuilder<TSchema> | FieldBuilder<TSchema> {
     if (ConditionBuilder.#isWhereDescriptor(arg)) {
       return this.#handleWhereDescriptor(this.#deepClone(arg))
     }
 
     if (op === undefined) {
-      return new FieldBuilder<TSchema>(this, arg as string)
+      return new FieldBuilder<TSchema>(this, arg)
     }
 
-    return this.#handleOperatorCondition(arg as string, op, this.#deepClone(value))
+    return this.#handleOperatorCondition(arg, op, this.#deepClone(value))
   }
 
   public orGroup(callback: (builder: ConditionBuilder<TSchema>) => void): ConditionBuilder<TSchema> {
@@ -116,14 +120,14 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
    * Add a ConditionGroup or ConditionItem directly to the current group
    * This is useful for adapters that need to add pre-built conditions
    */
-  public add(condition: ConditionGroup | ConditionItem): ConditionBuilder<TSchema> {
+  public add(condition: Condition): ConditionBuilder<TSchema> {
     const group = this.#getCurrentGroup()
     const key = group.$and ? '$and' : '$or'
     group[key]!.push(this.#deepClone(condition))
     return this
   }
 
-  public build(): ConditionGroup | ConditionItem {
+  public build(): Condition {
     const cloned = this.#deepClone(this.#root)
     return this.#unwrapSingleCondition(cloned)
   }
@@ -133,7 +137,7 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
    * For example: { $and: [{ field: 'name', op: '$eq', value: 'John' }] }
    * becomes: { field: 'name', op: '$eq', value: 'John' }
    */
-  #unwrapSingleCondition(group: ConditionGroup | ConditionItem): ConditionGroup | ConditionItem {
+  #unwrapSingleCondition(group: Condition): Condition {
     // If it's not a group, return as is
     if (!('$and' in group) && !('$or' in group)) {
       return group
@@ -160,7 +164,7 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
           return this.#unwrapSingleCondition(condition)
         }
         return condition
-      }) as Array<ConditionGroup | ConditionItem>
+      })
     }
 
     return group
@@ -228,10 +232,10 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
       if ((op === '$between' || op === '$notbetween') && Array.isArray(value)) {
         const [start, end] = value
         if (this.#isDateOrNumberOrString(start) && this.#isDateOrNumberOrString(end)) {
-          return (fb[method] as Function).call(fb, start, end)
+          return fb[method].call(fb, start, end)
         }
       }
-      return (fb[method] as Function).call(fb, value)
+      return fb[method].call(fb, value)
     }
 
     throw new Error(`Method ${method} not found on FieldBuilder`)
@@ -285,7 +289,7 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
     return allMappings[opKey]
   }
 
-  #isDateOrNumberOrString(value: unknown): value is string | number | Date {
+  #isDateOrNumberOrString(value: unknown): value is Range {
     return typeof value === 'string' || typeof value === 'number' || value instanceof Date
   }
 

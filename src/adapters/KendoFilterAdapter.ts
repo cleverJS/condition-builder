@@ -1,6 +1,6 @@
-import { ConditionBuilder, ConditionGroup, ConditionItem } from '../builder'
+import { Condition, ConditionBuilder, ConditionGroup } from '../builder'
 
-import { ConditionDeserializer } from './interfaces/ConditionAdapter'
+import { IConditionDeserializer } from './interfaces/IConditionAdapter'
 
 /**
  * Kendo UI DataSource filter format
@@ -60,12 +60,12 @@ export type KendoOperator =
  * }
  * const conditionGroup = adapter.deserialize(kendoFilter)
  */
-export class KendoFilterAdapter implements ConditionDeserializer<KendoFilter> {
+export class KendoFilterAdapter implements IConditionDeserializer<KendoFilter> {
   /**
    * Convert Kendo filter to ConditionBuilder
    */
   public deserialize(filter: KendoFilter): ConditionBuilder {
-    let result: ConditionGroup | ConditionItem
+    let result: Condition
     if (this.isCompositeFilter(filter)) {
       result = this.convertCompositeFilter(filter)
     } else {
@@ -104,7 +104,7 @@ export class KendoFilterAdapter implements ConditionDeserializer<KendoFilter> {
   /**
    * Convert a simple Kendo filter to ConditionItem or ConditionGroup
    */
-  private convertSimpleFilter(filter: IKendoItem): ConditionItem | ConditionGroup {
+  private convertSimpleFilter(filter: IKendoItem): Condition {
     const { field, value } = filter
     // Normalize operator to lowercase for case-insensitive matching
     const operator = filter.operator.toLowerCase() as KendoOperator

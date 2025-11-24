@@ -1,8 +1,8 @@
 import { FilterQuery } from '@mikro-orm/core'
 
-import { ConditionGroup, ConditionItem } from '../builder'
+import { Condition, ConditionGroup, ConditionItem } from '../builder'
 
-import { ConditionSerializer } from './interfaces/ConditionAdapter'
+import { IConditionSerializer } from './interfaces/IConditionAdapter'
 
 // Runtime check for @mikro-orm/core availability
 let mikroOrmAvailable = true
@@ -15,12 +15,12 @@ try {
 /**
  * Adapter to convert ConditionGroup or ConditionItem to MikroORM FilterQuery format
  */
-export class MikroOrmConditionAdapter implements ConditionSerializer<FilterQuery<unknown>> {
-  constructor() {
+export class MikroOrmConditionAdapter implements IConditionSerializer<FilterQuery<unknown>> {
+  public constructor() {
     if (!mikroOrmAvailable) {
       throw new Error(
         'MikroOrmConditionAdapter requires the "@mikro-orm/core" package to be installed. ' +
-          'Install it with: npm install @mikro-orm/core or pnpm add @mikro-orm/core',
+          'Install it with: npm install @mikro-orm/core or pnpm add @mikro-orm/core'
       )
     }
   }
@@ -28,7 +28,7 @@ export class MikroOrmConditionAdapter implements ConditionSerializer<FilterQuery
   /**
    * Convert a ConditionGroup or ConditionItem to MikroORM FilterQuery
    */
-  public serialize<T>(condition: ConditionGroup | ConditionItem): FilterQuery<T> {
+  public serialize<T>(condition: Condition): FilterQuery<T> {
     if (this.isConditionGroup(condition)) {
       return this.convertGroup<T>(condition)
     } else {
@@ -39,7 +39,7 @@ export class MikroOrmConditionAdapter implements ConditionSerializer<FilterQuery
   /**
    * Type guard to check if a condition is a ConditionGroup
    */
-  private isConditionGroup(condition: ConditionGroup | ConditionItem): condition is ConditionGroup {
+  private isConditionGroup(condition: Condition): condition is ConditionGroup {
     return '$and' in condition || '$or' in condition
   }
 

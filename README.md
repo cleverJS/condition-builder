@@ -325,6 +325,26 @@ const conditionGroup = complexBuilder.build()
 
 **Note:** Operators are case-insensitive, so `EQ`, `eq`, and `Eq` are all treated the same.
 
+#### Adapter Registry
+
+The `ConditionAdapterRegistry` is a singleton that allows registering and retrieving adapters by type:
+
+```typescript
+const registry = ConditionAdapterRegistry.getInstance()
+
+const knexAdapter = new KnexConditionAdapter()
+registry.register(AdapterType.KNEX, knexAdapter)
+
+const mikroOrmAdapter = new MikroOrmConditionAdapter()
+registry.register(AdapterType.MIKROORM, mikroOrmAdapter)
+
+const kendoAdapter = new KendoFilterAdapter()
+registry.register(AdapterType.KENDO, undefined, kendoAdapter)
+
+const customAdapter = new CustomConditionAdapter()
+registry.register('custom_adapter', customAdapter)
+```
+
 **Complete Example - API Endpoint:**
 
 ```typescript

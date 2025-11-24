@@ -1,4 +1,4 @@
-import { Operator, SimpleValue, SimpleValueArray, OperatorValueType } from './types'
+import { Operator, OperatorValueType, SimpleValue, SimpleValueArray } from './types'
 
 // Each condition can be one of:
 // 1. A simple value (converts to $eq)

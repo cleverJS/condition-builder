@@ -1,15 +1,10 @@
+export type Range = string | number | Date
 export type SimpleValue = string | number | Date | boolean | null
 export type SimpleValueArray = Array<string | number>
 export type BetweenValue = [string | number | Date, string | number | Date]
 export type ComparisonValue = Exclude<SimpleValue, boolean | null>
 
-export type Operator =
-  | BasicOperator
-  | ComparisonOperator
-  | PatternOperator
-  | ArrayOperator
-  | BetweenOperator
-  | NullOperator
+export type Operator = BasicOperator | ComparisonOperator | PatternOperator | ArrayOperator | BetweenOperator | NullOperator
 
 // Strongly typed operator groups
 export type BasicOperator = '$eq' | '$ne'
@@ -22,27 +17,27 @@ export type NullOperator = '$isnull' | '$notnull'
 // Map each operator to its allowed value type
 export type OperatorValueType = {
   // Basic operators
-  '$eq': SimpleValue
-  '$ne': SimpleValue
+  $eq: SimpleValue
+  $ne: SimpleValue
   // Comparison operators
-  '$gt': ComparisonValue
-  '$gte': ComparisonValue
-  '$lt': ComparisonValue
-  '$lte': ComparisonValue
+  $gt: ComparisonValue
+  $gte: ComparisonValue
+  $lt: ComparisonValue
+  $lte: ComparisonValue
   // Pattern operators
-  '$like': string
-  '$notlike': string
-  '$ilike': string
+  $like: string
+  $notlike: string
+  $ilike: string
   // Array operators
-  '$in': SimpleValueArray
-  '$notin': SimpleValueArray
-  '$nin': SimpleValueArray
+  $in: SimpleValueArray
+  $notin: SimpleValueArray
+  $nin: SimpleValueArray
   // Between operators
-  '$between': BetweenValue
-  '$notbetween': BetweenValue
+  $between: BetweenValue
+  $notbetween: BetweenValue
   // Null operators
-  '$isnull': true
-  '$notnull': true
+  $isnull: true
+  $notnull: true
 }
 
 // Condition interfaces with strict typing
@@ -78,6 +73,8 @@ interface IConditionNull {
 export type ConditionItem = IConditionSimple | IConditionBetween | IConditionIN | IConditionLike | IConditionNull
 
 export type ConditionGroup = {
-  $and?: Array<ConditionItem | ConditionGroup>
-  $or?: Array<ConditionItem | ConditionGroup>
+  $and?: Array<Condition>
+  $or?: Array<Condition>
 }
+
+export type Condition = ConditionGroup | ConditionItem

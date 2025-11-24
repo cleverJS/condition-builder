@@ -1,8 +1,8 @@
 import type { Knex } from 'knex'
 
-import { ConditionGroup, ConditionItem } from '../builder'
+import { Condition, ConditionGroup, ConditionItem } from '../builder'
 
-import { ConditionSerializer } from './interfaces/ConditionAdapter'
+import { IConditionSerializer } from './interfaces/IConditionAdapter'
 
 // Runtime check for knex availability
 let knexAvailable = true
@@ -23,17 +23,14 @@ export type KnexConditionApplier = (qb: Knex.QueryBuilder) => Knex.QueryBuilder
 /**
  * Adapter to convert ConditionGroup to Knex QueryBuilder conditions
  */
-export class KnexConditionAdapter implements ConditionSerializer<KnexConditionApplier> {
-  constructor() {
+export class KnexConditionAdapter implements IConditionSerializer<KnexConditionApplier> {
+  public constructor() {
     if (!knexAvailable) {
-      throw new Error(
-        'KnexConditionAdapter requires the "knex" package to be installed. ' +
-          'Install it with: npm install knex or pnpm add knex',
-      )
+      throw new Error('KnexConditionAdapter requires the "knex" package to be installed. ' + 'Install it with: npm install knex or pnpm add knex')
     }
   }
 
-  public serialize(condition: ConditionGroup | ConditionItem): KnexConditionApplier {
+  public serialize(condition: Condition): KnexConditionApplier {
     return (qb: Knex.QueryBuilder) => {
       if (this.isConditionGroup(condition)) {
         return this.applyGroup(qb, condition)
@@ -46,7 +43,7 @@ export class KnexConditionAdapter implements ConditionSerializer<KnexConditionAp
   /**
    * Type guard to check if a condition is a ConditionGroup
    */
-  private isConditionGroup(condition: ConditionGroup | ConditionItem): condition is ConditionGroup {
+  private isConditionGroup(condition: Condition): condition is ConditionGroup {
     return '$and' in condition || '$or' in condition
   }
 
