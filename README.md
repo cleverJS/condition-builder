@@ -131,6 +131,7 @@ ConditionBuilder.create().where({
   ```
 - `andGroup(callback)`: Create nested AND group
 - `orGroup(callback)`: Create nested OR group
+- `raw(sql, bindings?)`: Add a raw SQL condition with optional parameter bindings
 - `build()`: Get the final condition object
 
 **Example: Initialize from existing conditions**
@@ -219,6 +220,40 @@ const builder = ConditionBuilder.create()
   .where('email').isNotNull()         // Find records with email
   .where('status').eq('active')
 ```
+
+### Raw SQL Conditions
+For complex or database-specific SQL conditions that can't be expressed with standard operators, you can use raw SQL:
+
+```typescript
+// PostgreSQL array contains operator
+const builder = ConditionBuilder.create()
+  .raw('roles @> ARRAY[?]::varchar[]', [['admin', 'user']])
+
+// Complex JSON condition
+const builder2 = ConditionBuilder.create()
+  .where('age').gt(18)
+  .raw("data->>'status' = ?", ['active'])
+
+// Without bindings
+const builder3 = ConditionBuilder.create()
+  .raw('created_at > NOW() - INTERVAL 7 DAY')
+
+// Combine with other conditions
+const builder4 = ConditionBuilder.create()
+  .where('type').eq('user')
+  .orGroup(b => b
+    .where('role').eq('admin')
+    .raw("permissions @> ?::jsonb", [JSON.stringify({ write: true })])
+  )
+```
+
+**Important Notes:**
+- Use `?` as placeholders for parameter bindings to prevent SQL injection
+- Bindings are passed as an array as the second parameter
+- Array values in bindings are automatically handled (e.g., `[['admin', 'user']]` for PostgreSQL arrays)
+- Raw conditions work with all adapters (Knex, MikroORM) but the SQL syntax must be compatible with your database
+- For **MikroORM**: The adapter converts raw conditions to MikroORM's `raw()` helper function automatically
+- For **Knex**: The adapter converts raw conditions to `whereRaw()` or `orWhereRaw()` methods
 
 ## Adapters
 
@@ -441,6 +476,14 @@ The library produces JSON objects with the following structure:
 {
   $and: [
     { field: 'deletedAt', op: '$isnull' }
+  ]
+}
+
+// Raw SQL conditions
+{
+  $and: [
+    { field: 'age', op: '$gt', value: 18 },
+    { $raw: "data->>'status' = ?", bindings: ['active'] }
   ]
 }
 ```

@@ -1,6 +1,6 @@
 import { Condition, ConditionBuilder, ConditionGroup } from '../builder'
 
-import { IConditionDeserializer } from './interfaces/IConditionAdapter'
+import { IConditionDeserializer, IDeserializationOptions } from './interfaces/IConditionAdapter'
 
 /**
  * Kendo UI DataSource filter format
@@ -18,6 +18,28 @@ export interface IKendoGroup {
 }
 
 export type KendoFilter = IKendoItem | IKendoGroup
+
+export declare enum EKendoOperator {
+  EQ = 'eq',
+  NEQ = 'neq',
+  ISNULL = 'isnull',
+  ISNOTNULL = 'isnotnull',
+  LT = 'lt',
+  LTE = 'lte',
+  GT = 'gt',
+  GTE = 'gte',
+  STARTSWITH = 'startswith',
+  ENDSWITH = 'endswith',
+  CONTAINS = 'contains',
+  IN = 'in',
+  ISEMPTY = 'isempty',
+  ISNULLOREMPTY = 'isnullorempty',
+  ISNOTEMPTY = 'isnotempty',
+  ISNOTNULLOREMPTY = 'isnotnullorempty',
+  DOESNOTSTARTWITH = 'doesnotstartwith',
+  DOESNOTCONTAIN = 'doesnotcontain',
+  DOESNOTENDWITH = 'doesnotendwith',
+}
 
 /**
  * Kendo UI filter operators
@@ -63,13 +85,15 @@ export type KendoOperator =
 export class KendoFilterAdapter implements IConditionDeserializer<KendoFilter> {
   /**
    * Convert Kendo filter to ConditionBuilder
+   * @param filter - The Kendo filter to deserialize
+   * @param options - Deserialization options including field mapping
    */
-  public deserialize(filter: KendoFilter): ConditionBuilder {
+  public deserialize(filter: KendoFilter, options?: IDeserializationOptions): ConditionBuilder {
     let result: Condition
     if (this.isCompositeFilter(filter)) {
-      result = this.convertCompositeFilter(filter)
+      result = this.convertCompositeFilter(filter, options)
     } else {
-      result = this.convertSimpleFilter(filter)
+      result = this.convertSimpleFilter(filter, options)
     }
 
     return ConditionBuilder.from(result)
@@ -83,14 +107,24 @@ export class KendoFilterAdapter implements IConditionDeserializer<KendoFilter> {
   }
 
   /**
+   * Apply field name mapping if provided
+   */
+  private mapFieldName(fieldName: string, options?: IDeserializationOptions): string {
+    if (options?.fieldMapping && options.fieldMapping[fieldName]) {
+      return options.fieldMapping[fieldName]
+    }
+    return fieldName
+  }
+
+  /**
    * Convert a composite filter (with logic and nested filters) to ConditionGroup
    */
-  private convertCompositeFilter(filter: IKendoGroup): ConditionGroup {
+  private convertCompositeFilter(filter: IKendoGroup, options?: IDeserializationOptions): ConditionGroup {
     const conditions = filter.filters.map((f) => {
       if (this.isCompositeFilter(f)) {
-        return this.convertCompositeFilter(f)
+        return this.convertCompositeFilter(f, options)
       } else {
-        return this.convertSimpleFilter(f)
+        return this.convertSimpleFilter(f, options)
       }
     })
 
@@ -104,8 +138,9 @@ export class KendoFilterAdapter implements IConditionDeserializer<KendoFilter> {
   /**
    * Convert a simple Kendo filter to ConditionItem or ConditionGroup
    */
-  private convertSimpleFilter(filter: IKendoItem): Condition {
-    const { field, value } = filter
+  private convertSimpleFilter(filter: IKendoItem, options?: IDeserializationOptions): Condition {
+    const { value } = filter
+    const field = this.mapFieldName(filter.field, options)
     // Normalize operator to lowercase for case-insensitive matching
     const operator = filter.operator.toLowerCase() as KendoOperator
 

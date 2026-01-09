@@ -1,6 +1,6 @@
 import { FieldBuilder } from './FieldBuilder'
 import { WhereDescriptor } from './interfaces/descriptors'
-import { Condition, ConditionGroup, ConditionItem, Operator, Range, SimpleValue } from './interfaces/types'
+import { Condition, ConditionGroup, ConditionItem, Operator, Range, RawCondition, SimpleValue } from './interfaces/types'
 
 export class ConditionBuilder<TSchema = Record<string, any>> {
   readonly #root: ConditionGroup
@@ -124,6 +124,36 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
     const group = this.#getCurrentGroup()
     const key = group.$and ? '$and' : '$or'
     group[key]!.push(this.#deepClone(condition))
+    return this
+  }
+
+  /**
+   * Add a raw SQL condition
+   * This is useful for database-specific or complex SQL conditions that can't be expressed with standard operators
+   *
+   * @param sql - The raw SQL string, use ? as placeholders for bindings
+   * @param bindings - Optional array of values to bind to the SQL placeholders
+   *
+   * @example
+   * // PostgreSQL array contains operator
+   * builder.raw('roles @> ARRAY[?]::varchar[]', [['admin', 'user']])
+   *
+   * @example
+   * // Complex JSON condition
+   * builder.raw("data->>'status' = ?", ['active'])
+   *
+   * @example
+   * // No bindings
+   * builder.raw('created_at > NOW() - INTERVAL 7 DAY')
+   */
+  public raw(sql: string, bindings?: any[]): ConditionBuilder<TSchema> {
+    const rawCondition: RawCondition = { $raw: sql }
+    if (bindings !== undefined) {
+      rawCondition.bindings = this.#deepClone(bindings)
+    }
+    const group = this.#getCurrentGroup()
+    const key = group.$and ? '$and' : '$or'
+    group[key]!.push(rawCondition)
     return this
   }
 

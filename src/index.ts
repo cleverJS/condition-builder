@@ -14,9 +14,12 @@ export type { IAdapterPlugin, AdapterTypeValue } from './adapters'
 
 // Kendo types
 export type { KendoFilter, IKendoItem, IKendoGroup, KendoOperator } from './adapters'
+export { EKendoOperator } from './adapters'
 
 // Builder classes and main types
 export { ConditionBuilder, FieldBuilder, WhereDescriptor, ConditionGroup, ConditionItem, Condition } from './builder'
+
+export type { RawCondition } from './builder/interfaces/types'
 
 // Type system - value types
 export type { SimpleValue, SimpleValueArray, BetweenValue, ComparisonValue } from './builder/interfaces/types'

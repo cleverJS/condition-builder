@@ -72,9 +72,18 @@ interface IConditionNull {
 
 export type ConditionItem = IConditionSimple | IConditionBetween | IConditionIN | IConditionLike | IConditionNull
 
+/**
+ * Raw SQL condition for complex database-specific queries
+ * Example: { $raw: 'roles @> ARRAY[?]::varchar[]', bindings: [['admin', 'user']] }
+ */
+export interface RawCondition {
+  $raw: string
+  bindings?: any[]
+}
+
 export type ConditionGroup = {
   $and?: Array<Condition>
   $or?: Array<Condition>
 }
 
-export type Condition = ConditionGroup | ConditionItem
+export type Condition = ConditionGroup | ConditionItem | RawCondition

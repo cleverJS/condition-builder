@@ -1,8 +1,8 @@
 import type { Knex } from 'knex'
 
-import { Condition, ConditionGroup, ConditionItem } from '../builder'
+import { Condition, ConditionGroup, ConditionItem, RawCondition } from '../builder'
 
-import { IConditionSerializer } from './interfaces/IConditionAdapter'
+import { IConditionSerializer, ISerializationOptions } from './interfaces/IConditionAdapter'
 
 // Runtime check for knex availability
 let knexAvailable = true
@@ -30,12 +30,14 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
     }
   }
 
-  public serialize(condition: Condition): KnexConditionApplier {
+  public serialize(condition: Condition, options?: ISerializationOptions): KnexConditionApplier {
     return (qb: Knex.QueryBuilder) => {
       if (this.isConditionGroup(condition)) {
-        return this.applyGroup(qb, condition)
+        return this.applyGroup(qb, condition, options)
+      } else if (this.isRawCondition(condition)) {
+        return this.applyRaw(qb, condition)
       } else {
-        return this.applyItem(qb, condition)
+        return this.applyItem(qb, condition, options)
       }
     }
   }
@@ -48,9 +50,26 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
   }
 
   /**
+   * Type guard to check if a condition is a RawCondition
+   */
+  private isRawCondition(condition: Condition): condition is RawCondition {
+    return '$raw' in condition
+  }
+
+  /**
+   * Apply field name mapping if provided
+   */
+  private mapFieldName(fieldName: string, options?: ISerializationOptions): string {
+    if (options?.fieldMapping && options.fieldMapping[fieldName]) {
+      return options.fieldMapping[fieldName]
+    }
+    return fieldName
+  }
+
+  /**
    * Apply a ConditionGroup to Knex QueryBuilder
    */
-  private applyGroup(qb: Knex.QueryBuilder, group: ConditionGroup): Knex.QueryBuilder {
+  private applyGroup(qb: Knex.QueryBuilder, group: ConditionGroup, options?: ISerializationOptions): Knex.QueryBuilder {
     if (group.$and) {
       // For AND groups, we can apply conditions directly or use andWhere for nested groups
       if (group.$and.length === 0) {
@@ -61,9 +80,11 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
         // Single condition - apply directly
         const condition = group.$and[0]
         if (this.isConditionGroup(condition)) {
-          return this.applyGroup(qb, condition)
+          return this.applyGroup(qb, condition, options)
+        } else if (this.isRawCondition(condition)) {
+          return this.applyRaw(qb, condition)
         } else {
-          return this.applyItem(qb, condition)
+          return this.applyItem(qb, condition, options)
         }
       }
 
@@ -71,9 +92,11 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
       group.$and.forEach((condition) => {
         if (this.isConditionGroup(condition)) {
           // Nested group - wrap in andWhere callback
-          qb.andWhere((subQb) => this.applyGroup(subQb, condition))
+          qb.andWhere((subQb) => this.applyGroup(subQb, condition, options))
+        } else if (this.isRawCondition(condition)) {
+          this.applyRaw(qb, condition)
         } else {
-          this.applyItem(qb, condition)
+          this.applyItem(qb, condition, options)
         }
       })
 
@@ -88,9 +111,11 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
         // Single condition - apply directly
         const condition = group.$or[0]
         if (this.isConditionGroup(condition)) {
-          return this.applyGroup(qb, condition)
+          return this.applyGroup(qb, condition, options)
+        } else if (this.isRawCondition(condition)) {
+          return this.applyRaw(qb, condition)
         } else {
-          return this.applyItem(qb, condition)
+          return this.applyItem(qb, condition, options)
         }
       }
 
@@ -100,16 +125,20 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
           if (index === 0) {
             // First condition uses where
             if (this.isConditionGroup(condition)) {
-              subQb.where((nestedQb) => this.applyGroup(nestedQb, condition))
+              subQb.where((nestedQb) => this.applyGroup(nestedQb, condition, options))
+            } else if (this.isRawCondition(condition)) {
+              this.applyRaw(subQb, condition)
             } else {
-              this.applyItem(subQb, condition)
+              this.applyItem(subQb, condition, options)
             }
           } else {
             // Subsequent conditions use orWhere
             if (this.isConditionGroup(condition)) {
-              subQb.orWhere((nestedQb) => this.applyGroup(nestedQb, condition))
+              subQb.orWhere((nestedQb) => this.applyGroup(nestedQb, condition, options))
+            } else if (this.isRawCondition(condition)) {
+              this.applyRawWithOr(subQb, condition)
             } else {
-              this.applyItemWithOr(subQb, condition)
+              this.applyItemWithOr(subQb, condition, options)
             }
           }
         })
@@ -122,10 +151,31 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
   }
 
   /**
+   * Apply a RawCondition to Knex QueryBuilder using whereRaw
+   */
+  private applyRaw(qb: Knex.QueryBuilder, raw: RawCondition): Knex.QueryBuilder {
+    if (raw.bindings !== undefined && raw.bindings.length > 0) {
+      return qb.whereRaw(raw.$raw, raw.bindings)
+    }
+    return qb.whereRaw(raw.$raw)
+  }
+
+  /**
+   * Apply a RawCondition to Knex QueryBuilder using orWhereRaw
+   */
+  private applyRawWithOr(qb: Knex.QueryBuilder, raw: RawCondition): Knex.QueryBuilder {
+    if (raw.bindings !== undefined && raw.bindings.length > 0) {
+      return qb.orWhereRaw(raw.$raw, raw.bindings)
+    }
+    return qb.orWhereRaw(raw.$raw)
+  }
+
+  /**
    * Apply a ConditionItem to Knex QueryBuilder using where
    */
-  private applyItem(qb: Knex.QueryBuilder, item: ConditionItem): Knex.QueryBuilder {
-    const { field, op } = item
+  private applyItem(qb: Knex.QueryBuilder, item: ConditionItem, options?: ISerializationOptions): Knex.QueryBuilder {
+    const field = this.mapFieldName(item.field, options)
+    const { op } = item
 
     switch (op) {
       case '$eq':
@@ -183,8 +233,9 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
   /**
    * Apply a ConditionItem to Knex QueryBuilder using orWhere
    */
-  private applyItemWithOr(qb: Knex.QueryBuilder, item: ConditionItem): Knex.QueryBuilder {
-    const { field, op } = item
+  private applyItemWithOr(qb: Knex.QueryBuilder, item: ConditionItem, options?: ISerializationOptions): Knex.QueryBuilder {
+    const field = this.mapFieldName(item.field, options)
+    const { op } = item
 
     switch (op) {
       case '$eq':

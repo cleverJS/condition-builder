@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { ConditionBuilder, ConditionGroup, ConditionItem } from '../src'
+import { ConditionBuilder, ConditionGroup } from '../src'
 
 describe('ConditionBuilder', () => {
   it('builds simple eq condition', () => {
