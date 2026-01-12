@@ -1,6 +1,7 @@
 // Adapters
 export {
   KnexConditionAdapter,
+  KnexConditionApplier,
   MikroOrmConditionAdapter,
   IConditionAdapter,
   IConditionDeserializer,
