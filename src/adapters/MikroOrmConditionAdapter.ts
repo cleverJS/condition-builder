@@ -1,22 +1,15 @@
-import { FilterQuery, raw } from '@mikro-orm/core'
+import { FilterQuery } from '@mikro-orm/core'
 
 import { Condition, ConditionGroup, ConditionItem } from '../builder'
-import type { RawCondition } from '../builder/interfaces/types'
 
 import { IConditionSerializer, ISerializationOptions } from './interfaces/IConditionAdapter'
 
 // Runtime check for @mikro-orm/core availability
 let mikroOrmAvailable = true
-let rawHelperAvailable = true
 try {
   require.resolve('@mikro-orm/core')
-  // Check if raw helper is available
-  if (typeof raw !== 'function') {
-    rawHelperAvailable = false
-  }
 } catch {
   mikroOrmAvailable = false
-  rawHelperAvailable = false
 }
 
 /**
@@ -38,8 +31,6 @@ export class MikroOrmConditionAdapter implements IConditionSerializer<FilterQuer
   public serialize<T>(condition: Condition, options?: ISerializationOptions): FilterQuery<T> {
     if (this.isConditionGroup(condition)) {
       return this.convertGroup<T>(condition, options)
-    } else if (this.isRawCondition(condition)) {
-      return this.convertRaw<T>(condition)
     } else {
       return this.convertItem(condition, options) as FilterQuery<T>
     }
@@ -50,33 +41,6 @@ export class MikroOrmConditionAdapter implements IConditionSerializer<FilterQuer
    */
   private isConditionGroup(condition: Condition): condition is ConditionGroup {
     return '$and' in condition || '$or' in condition
-  }
-
-  /**
-   * Type guard to check if a condition is a RawCondition
-   */
-  private isRawCondition(condition: Condition): condition is RawCondition {
-    return '$raw' in condition
-  }
-
-  /**
-   * Convert a RawCondition to MikroORM FilterQuery using raw() helper
-   * MikroORM documentation: https://mikro-orm.io/docs/raw-queries
-   */
-  private convertRaw<T>(rawCondition: RawCondition): FilterQuery<T> {
-    if (!rawHelperAvailable) {
-      throw new Error(
-        'MikroORM raw() helper is not available. Make sure you are using a version of @mikro-orm/core that supports the raw() helper function.'
-      )
-    }
-
-    // MikroORM uses the raw() helper function to create raw SQL fragments
-    // Format: raw('sql string', bindings)
-    // The raw() function returns a special object that MikroORM recognizes
-    if (rawCondition.bindings !== undefined && rawCondition.bindings.length > 0) {
-      return raw(rawCondition.$raw, rawCondition.bindings) as FilterQuery<T>
-    }
-    return raw(rawCondition.$raw) as FilterQuery<T>
   }
 
   /**

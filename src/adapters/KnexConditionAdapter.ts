@@ -1,6 +1,6 @@
 import type { Knex } from 'knex'
 
-import { Condition, ConditionGroup, ConditionItem, RawCondition } from '../builder'
+import { Condition, ConditionGroup, ConditionItem } from '../builder'
 
 import { IConditionSerializer, ISerializationOptions } from './interfaces/IConditionAdapter'
 
@@ -34,8 +34,6 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
     return (qb: Knex.QueryBuilder) => {
       if (this.isConditionGroup(condition)) {
         return this.applyGroup(qb, condition, options)
-      } else if (this.isRawCondition(condition)) {
-        return this.applyRaw(qb, condition)
       } else {
         return this.applyItem(qb, condition, options)
       }
@@ -47,13 +45,6 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
    */
   private isConditionGroup(condition: Condition): condition is ConditionGroup {
     return '$and' in condition || '$or' in condition
-  }
-
-  /**
-   * Type guard to check if a condition is a RawCondition
-   */
-  private isRawCondition(condition: Condition): condition is RawCondition {
-    return '$raw' in condition
   }
 
   /**
@@ -81,8 +72,6 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
         const condition = group.$and[0]
         if (this.isConditionGroup(condition)) {
           return this.applyGroup(qb, condition, options)
-        } else if (this.isRawCondition(condition)) {
-          return this.applyRaw(qb, condition)
         } else {
           return this.applyItem(qb, condition, options)
         }
@@ -93,8 +82,6 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
         if (this.isConditionGroup(condition)) {
           // Nested group - wrap in andWhere callback
           qb.andWhere((subQb) => this.applyGroup(subQb, condition, options))
-        } else if (this.isRawCondition(condition)) {
-          this.applyRaw(qb, condition)
         } else {
           this.applyItem(qb, condition, options)
         }
@@ -112,8 +99,6 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
         const condition = group.$or[0]
         if (this.isConditionGroup(condition)) {
           return this.applyGroup(qb, condition, options)
-        } else if (this.isRawCondition(condition)) {
-          return this.applyRaw(qb, condition)
         } else {
           return this.applyItem(qb, condition, options)
         }
@@ -126,8 +111,6 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
             // First condition uses where
             if (this.isConditionGroup(condition)) {
               subQb.where((nestedQb) => this.applyGroup(nestedQb, condition, options))
-            } else if (this.isRawCondition(condition)) {
-              this.applyRaw(subQb, condition)
             } else {
               this.applyItem(subQb, condition, options)
             }
@@ -135,8 +118,6 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
             // Subsequent conditions use orWhere
             if (this.isConditionGroup(condition)) {
               subQb.orWhere((nestedQb) => this.applyGroup(nestedQb, condition, options))
-            } else if (this.isRawCondition(condition)) {
-              this.applyRawWithOr(subQb, condition)
             } else {
               this.applyItemWithOr(subQb, condition, options)
             }
@@ -148,26 +129,6 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
     }
 
     return qb
-  }
-
-  /**
-   * Apply a RawCondition to Knex QueryBuilder using whereRaw
-   */
-  private applyRaw(qb: Knex.QueryBuilder, raw: RawCondition): Knex.QueryBuilder {
-    if (raw.bindings !== undefined && raw.bindings.length > 0) {
-      return qb.whereRaw(raw.$raw, raw.bindings)
-    }
-    return qb.whereRaw(raw.$raw)
-  }
-
-  /**
-   * Apply a RawCondition to Knex QueryBuilder using orWhereRaw
-   */
-  private applyRawWithOr(qb: Knex.QueryBuilder, raw: RawCondition): Knex.QueryBuilder {
-    if (raw.bindings !== undefined && raw.bindings.length > 0) {
-      return qb.orWhereRaw(raw.$raw, raw.bindings)
-    }
-    return qb.orWhereRaw(raw.$raw)
   }
 
   /**
