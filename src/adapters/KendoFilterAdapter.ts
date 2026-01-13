@@ -19,7 +19,7 @@ export interface IKendoGroup {
 
 export type KendoFilter = IKendoItem | IKendoGroup
 
-export declare enum EKendoOperator {
+export enum EKendoOperator {
   EQ = 'eq',
   NEQ = 'neq',
   ISNULL = 'isnull',
