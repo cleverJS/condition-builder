@@ -18,10 +18,13 @@ export type { KendoFilter, IKendoItem, IKendoGroup, KendoOperator } from './adap
 export { EKendoOperator } from './adapters'
 
 // Builder classes and main types
-export { ConditionBuilder, FieldBuilder, WhereDescriptor, ConditionGroup, ConditionItem, Condition } from './builder'
+export { ConditionBuilder, FieldBuilder, ConditionGroup, ConditionItem, Condition } from './builder'
+
+// Type system - descriptor types
+export type { WhereDescriptor } from './builder/interfaces/descriptors'
 
 // Type system - value types
-export type { SimpleValue, SimpleValueArray, BetweenValue, ComparisonValue } from './builder/interfaces/types'
+export type { SimpleValue, SimpleValueArray, BetweenValue, ComparisonValue, Range } from './builder/interfaces/types'
 
 // Type system - operators
 export type {

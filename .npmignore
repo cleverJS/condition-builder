@@ -1,0 +1,28 @@
+# Source files
+src/
+tests/
+docs/
+
+# Config files
+.swcrc
+tsconfig.json
+tsconfig.build.json
+vitest.config.ts
+eslint.config.mjs
+
+# Development files
+.git
+.gitignore
+.npmrc
+*.log
+node_modules/
+
+# Build artifacts
+*.tsbuildinfo
+.DS_Store
+
+# Scripts
+publish.sh
+
+# Keep only dist, README.md, and package.json
+

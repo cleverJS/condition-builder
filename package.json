@@ -14,7 +14,8 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "dist/**/*"
+    "dist/**/*",
+    "README.md"
   ],
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
@@ -24,17 +25,33 @@
     "url": "https://github.com/cleverJS/condition-builder.git"
   },
   "scripts": {
-    "build": "swc ./src -d ./dist --strip-leading-paths && tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "build": "swc ./src -d ./dist --strip-leading-paths --source-maps && tsc -p tsconfig.build.json --emitDeclarationOnly",
     "prebuild": "pnpm clean",
     "clean": "rm -rf dist tsconfig.build.tsbuildinfo",
     "prepublishOnly": "npm run build",
     "tests": "vitest --config vitest.config.ts",
     "test-coverage": "vitest run --coverage --config vitest.config.ts"
   },
-  "keywords": [],
+  "keywords": [
+    "query-builder",
+    "condition-builder",
+    "orm-agnostic",
+    "knex",
+    "mikro-orm",
+    "sql",
+    "query",
+    "filter",
+    "where",
+    "typescript",
+    "type-safe",
+    "database",
+    "json-serializable",
+    "kendo-ui"
+  ],
   "author": "",
   "license": "Commercial",
   "type": "commonjs",
+  "sideEffects": false,
   "peerDependencies": {
     "knex": ">=3.0.0",
     "@mikro-orm/core": ">=6.0.0"
