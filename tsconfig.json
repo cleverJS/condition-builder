@@ -6,6 +6,7 @@
     "esModuleInterop": true,
     "isolatedModules": false,
     "declaration": true,
+    "declarationDir": "./dist/types",
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
