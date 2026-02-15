@@ -1,5 +1,5 @@
 import { ConditionBuilder } from './ConditionBuilder'
-import { ConditionItem, Range, SimpleValue, SimpleValueArray } from './interfaces/types'
+import { ConditionItem, Operator, Range, SimpleValue, SimpleValueArray } from './interfaces/types'
 
 export class FieldBuilder<TSchema = Record<string, any>> {
   public constructor(
@@ -68,10 +68,10 @@ export class FieldBuilder<TSchema = Record<string, any>> {
     return this.parent
   }
 
-  #createCondition(op: string, value?: unknown): ConditionBuilder<TSchema> {
+  #createCondition(op: Operator, value?: unknown): ConditionBuilder<TSchema> {
     this.#validateValue(op, value)
-    const condition = { op, field: this.field, value } as ConditionItem
-    return this.parent.addCondition(condition)
+    const condition = op === '$isnull' || op === '$notnull' ? { op, field: this.field } : { op, field: this.field, value }
+    return this.parent.addCondition(<ConditionItem>condition)
   }
 
   #validateValue(op: string, value?: unknown): void {
@@ -89,6 +89,9 @@ export class FieldBuilder<TSchema = Record<string, any>> {
     if (op === '$in' || op === '$notin' || op === '$nin') {
       if (!Array.isArray(value) || !value.every((v) => typeof v === 'string' || typeof v === 'number')) {
         throw new Error(`${op} requires an array of strings or numbers`)
+      }
+      if (value.length === 0) {
+        throw new Error(`${op} requires a non-empty array`)
       }
       return
     }

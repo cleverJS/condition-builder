@@ -1,5 +1,6 @@
 import { Condition, ConditionBuilder, ConditionGroup } from '../builder'
 
+import { mapFieldName } from './adapter-utils'
 import { IConditionDeserializer, IDeserializationOptions } from './interfaces/IConditionAdapter'
 
 /**
@@ -83,6 +84,10 @@ export type KendoOperator =
  * const conditionGroup = adapter.deserialize(kendoFilter)
  */
 export class KendoFilterAdapter implements IConditionDeserializer<KendoFilter> {
+  private static escapeLikeValue(value: string): string {
+    return value.replace(/[%_\\]/g, '\\$&')
+  }
+
   /**
    * Convert Kendo filter to ConditionBuilder
    * @param filter - The Kendo filter to deserialize
@@ -104,16 +109,6 @@ export class KendoFilterAdapter implements IConditionDeserializer<KendoFilter> {
    */
   private isCompositeFilter(filter: KendoFilter): filter is IKendoGroup {
     return 'logic' in filter && 'filters' in filter
-  }
-
-  /**
-   * Apply field name mapping if provided
-   */
-  private mapFieldName(fieldName: string, options?: IDeserializationOptions): string {
-    if (options?.fieldMapping && options.fieldMapping[fieldName]) {
-      return options.fieldMapping[fieldName]
-    }
-    return fieldName
   }
 
   /**
@@ -140,7 +135,7 @@ export class KendoFilterAdapter implements IConditionDeserializer<KendoFilter> {
    */
   private convertSimpleFilter(filter: IKendoItem, options?: IDeserializationOptions): Condition {
     const { value } = filter
-    const field = this.mapFieldName(filter.field, options)
+    const field = mapFieldName(filter.field, options)
     // Normalize operator to lowercase for case-insensitive matching
     const operator = filter.operator.toLowerCase() as KendoOperator
 
@@ -174,29 +169,35 @@ export class KendoFilterAdapter implements IConditionDeserializer<KendoFilter> {
       case 'in':
         return { field, op: '$in', value }
 
-      case 'contains':
-        // Convert 'contains' to ILIKE pattern
-        return { field, op: '$ilike', value: `%${value}%` }
+      case 'contains': {
+        const escaped = KendoFilterAdapter.escapeLikeValue(String(value))
+        return { field, op: '$ilike', value: `%${escaped}%` }
+      }
 
-      case 'doesnotcontain':
-        // Convert 'doesnotcontain' to NOT LIKE pattern
-        return { field, op: '$notlike', value: `%${value}%` }
+      case 'doesnotcontain': {
+        const escaped = KendoFilterAdapter.escapeLikeValue(String(value))
+        return { field, op: '$notlike', value: `%${escaped}%` }
+      }
 
-      case 'startswith':
-        // Convert 'startswith' to ILIKE pattern
-        return { field, op: '$ilike', value: `${value}%` }
+      case 'startswith': {
+        const escaped = KendoFilterAdapter.escapeLikeValue(String(value))
+        return { field, op: '$ilike', value: `${escaped}%` }
+      }
 
-      case 'endswith':
-        // Convert 'endswith' to ILIKE pattern
-        return { field, op: '$ilike', value: `%${value}` }
+      case 'endswith': {
+        const escaped = KendoFilterAdapter.escapeLikeValue(String(value))
+        return { field, op: '$ilike', value: `%${escaped}` }
+      }
 
-      case 'doesnotstartwith':
-        // Convert 'doesnotstartwith' to NOT LIKE pattern
-        return { field, op: '$notlike', value: `${value}%` }
+      case 'doesnotstartwith': {
+        const escaped = KendoFilterAdapter.escapeLikeValue(String(value))
+        return { field, op: '$notlike', value: `${escaped}%` }
+      }
 
-      case 'doesnotendwith':
-        // Convert 'doesnotendwith' to NOT LIKE pattern
-        return { field, op: '$notlike', value: `%${value}` }
+      case 'doesnotendwith': {
+        const escaped = KendoFilterAdapter.escapeLikeValue(String(value))
+        return { field, op: '$notlike', value: `%${escaped}` }
+      }
 
       case 'isnull':
         return { field, op: '$isnull' }

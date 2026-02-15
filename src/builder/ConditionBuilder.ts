@@ -1,8 +1,10 @@
 import { FieldBuilder } from './FieldBuilder'
 import { WhereDescriptor } from './interfaces/descriptors'
-import { Condition, ConditionGroup, ConditionItem, Operator, Range, SimpleValue } from './interfaces/types'
+import { Condition, ConditionGroup, ConditionItem, Operator, Range } from './interfaces/types'
 
 export class ConditionBuilder<TSchema = Record<string, any>> {
+  private static readonly MAX_NESTING_DEPTH = 50
+
   readonly #root: ConditionGroup
   readonly #current: ConditionGroup[] = []
 
@@ -33,11 +35,18 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
     },
   } as const
 
+  static readonly #ALL_OPERATOR_KEYS: Set<string> = new Set(Object.values(ConditionBuilder.#OPERATOR_MAPPINGS).flatMap((group) => Object.keys(group)))
+
+  static readonly #FLAT_OPERATOR_MAP: Record<string, { method: string }> = Object.values(ConditionBuilder.#OPERATOR_MAPPINGS).reduce(
+    (acc, map) => ({ ...acc, ...map }),
+    {} as Record<string, { method: string }>
+  )
+
   public constructor(initialCondition?: Condition) {
     if (initialCondition) {
       // If it's a ConditionGroup, use it as root
       if ('$and' in initialCondition || '$or' in initialCondition) {
-        this.#root = this.#deepClone(initialCondition as ConditionGroup)
+        this.#root = this.#deepClone(initialCondition)
       } else {
         // If it's a ConditionItem, wrap it in an $and group
         this.#root = { $and: [this.#deepClone(initialCondition as ConditionItem)] }
@@ -110,17 +119,6 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
   }
 
   public addCondition(condition: ConditionItem): ConditionBuilder<TSchema> {
-    const group = this.#getCurrentGroup()
-    const key = group.$and ? '$and' : '$or'
-    group[key]!.push(this.#deepClone(condition))
-    return this
-  }
-
-  /**
-   * Add a ConditionGroup or ConditionItem directly to the current group
-   * This is useful for adapters that need to add pre-built conditions
-   */
-  public add(condition: Condition): ConditionBuilder<TSchema> {
     const group = this.#getCurrentGroup()
     const key = group.$and ? '$and' : '$or'
     group[key]!.push(this.#deepClone(condition))
@@ -201,8 +199,7 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
   }
 
   #isValidOperatorKey(key: string): boolean {
-    const allOperators = Object.values(ConditionBuilder.#OPERATOR_MAPPINGS).reduce((acc, group) => [...acc, ...Object.keys(group)], [] as string[])
-    return allOperators.includes(key) || key === 'op'
+    return ConditionBuilder.#ALL_OPERATOR_KEYS.has(key) || key === 'op'
   }
 
   #handleOperatorCondition(field: string, op: string, value: unknown): ConditionBuilder<TSchema> {
@@ -210,20 +207,7 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
     const mapping = this.#getMappedOperator(op)
 
     if (!mapping) {
-      if (Array.isArray(value)) {
-        if (value.length === 2) {
-          const [start, end] = value
-          if (this.#isDateOrNumberOrString(start) && this.#isDateOrNumberOrString(end)) {
-            return fb.between(start, end)
-          }
-        }
-        if (this.#isSimpleValueArray(value)) {
-          return fb.in(value)
-        }
-      }
-
-      // Default to equals if no mapping found
-      return fb.eq(value as SimpleValue)
+      throw new Error(`Unknown operator: ${op}`)
     }
 
     const method = mapping.method
@@ -285,19 +269,18 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
 
   #getMappedOperator(op: string): { method: string } | undefined {
     const opKey = op.startsWith('$') ? op : `$${op.toLowerCase()}`
-    const allMappings = Object.values(ConditionBuilder.#OPERATOR_MAPPINGS).reduce((acc, map) => ({ ...acc, ...map }), {})
-    return allMappings[opKey]
+    return ConditionBuilder.#FLAT_OPERATOR_MAP[opKey]
   }
 
   #isDateOrNumberOrString(value: unknown): value is Range {
     return typeof value === 'string' || typeof value === 'number' || value instanceof Date
   }
 
-  #isSimpleValueArray(value: unknown[]): value is (string | number)[] {
-    return value.every((v) => typeof v === 'string' || typeof v === 'number')
-  }
-
   #createGroup(type: 'and' | 'or', callback: (builder: ConditionBuilder<TSchema>) => void): ConditionBuilder<TSchema> {
+    if (this.#current.length >= ConditionBuilder.MAX_NESTING_DEPTH) {
+      throw new Error(`Maximum nesting depth of ${ConditionBuilder.MAX_NESTING_DEPTH} exceeded`)
+    }
+
     const group: ConditionGroup = type === 'and' ? { $and: [] } : { $or: [] }
     const currentGroup = this.#getCurrentGroup()
     const key = currentGroup.$and ? '$and' : '$or'

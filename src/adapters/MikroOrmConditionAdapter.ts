@@ -2,6 +2,7 @@ import { FilterQuery } from '@mikro-orm/core'
 
 import { Condition, ConditionGroup, ConditionItem } from '../builder'
 
+import { isConditionGroup, mapFieldName } from './adapter-utils'
 import { IConditionSerializer, ISerializationOptions } from './interfaces/IConditionAdapter'
 
 // Runtime check for @mikro-orm/core availability
@@ -29,34 +30,17 @@ export class MikroOrmConditionAdapter implements IConditionSerializer<FilterQuer
    * Convert a ConditionGroup or ConditionItem to MikroORM FilterQuery
    */
   public serialize<T>(condition: Condition, options?: ISerializationOptions): FilterQuery<T> {
-    if (this.isConditionGroup(condition)) {
-      return this.convertGroup<T>(condition, options)
+    if (isConditionGroup(condition)) {
+      return this.#convertGroup<T>(condition, options)
     } else {
-      return this.convertItem(condition, options) as FilterQuery<T>
+      return this.#convertItem(condition, options) as FilterQuery<T>
     }
-  }
-
-  /**
-   * Type guard to check if a condition is a ConditionGroup
-   */
-  private isConditionGroup(condition: Condition): condition is ConditionGroup {
-    return '$and' in condition || '$or' in condition
-  }
-
-  /**
-   * Apply field name mapping if provided
-   */
-  private mapFieldName(fieldName: string, options?: ISerializationOptions): string {
-    if (options?.fieldMapping && options.fieldMapping[fieldName]) {
-      return options.fieldMapping[fieldName]
-    }
-    return fieldName
   }
 
   /**
    * Convert a ConditionGroup to MikroORM FilterQuery
    */
-  private convertGroup<T>(group: ConditionGroup, options?: ISerializationOptions): FilterQuery<T> {
+  #convertGroup<T>(group: ConditionGroup, options?: ISerializationOptions): FilterQuery<T> {
     if (group.$and) {
       const convertedConditions = group.$and.map((cond) => this.serialize<T>(cond, options))
       // For AND groups with a single condition, unwrap it
@@ -80,8 +64,8 @@ export class MikroOrmConditionAdapter implements IConditionSerializer<FilterQuer
   /**
    * Convert a ConditionItem to MikroORM FilterQuery
    */
-  private convertItem(item: ConditionItem, options?: ISerializationOptions) {
-    const field = this.mapFieldName(item.field, options)
+  #convertItem(item: ConditionItem, options?: ISerializationOptions) {
+    const field = mapFieldName(item.field, options)
     const { op } = item
 
     // Handle operators that map directly to MikroORM

@@ -2,6 +2,7 @@ import type { Knex } from 'knex'
 
 import { Condition, ConditionGroup, ConditionItem } from '../builder'
 
+import { isConditionGroup, mapFieldName } from './adapter-utils'
 import { IConditionSerializer, ISerializationOptions } from './interfaces/IConditionAdapter'
 
 // Runtime check for knex availability
@@ -32,29 +33,12 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
 
   public serialize(condition: Condition, options?: ISerializationOptions): KnexConditionApplier {
     return (qb: Knex.QueryBuilder) => {
-      if (this.isConditionGroup(condition)) {
+      if (isConditionGroup(condition)) {
         return this.applyGroup(qb, condition, options)
       } else {
         return this.applyItem(qb, condition, options)
       }
     }
-  }
-
-  /**
-   * Type guard to check if a condition is a ConditionGroup
-   */
-  private isConditionGroup(condition: Condition): condition is ConditionGroup {
-    return '$and' in condition || '$or' in condition
-  }
-
-  /**
-   * Apply field name mapping if provided
-   */
-  private mapFieldName(fieldName: string, options?: ISerializationOptions): string {
-    if (options?.fieldMapping && options.fieldMapping[fieldName]) {
-      return options.fieldMapping[fieldName]
-    }
-    return fieldName
   }
 
   /**
@@ -70,7 +54,7 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
       if (group.$and.length === 1) {
         // Single condition - apply directly
         const condition = group.$and[0]
-        if (this.isConditionGroup(condition)) {
+        if (isConditionGroup(condition)) {
           return this.applyGroup(qb, condition, options)
         } else {
           return this.applyItem(qb, condition, options)
@@ -79,7 +63,7 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
 
       // Multiple conditions - apply all with AND
       group.$and.forEach((condition) => {
-        if (this.isConditionGroup(condition)) {
+        if (isConditionGroup(condition)) {
           // Nested group - wrap in andWhere callback
           qb.andWhere((subQb) => this.applyGroup(subQb, condition, options))
         } else {
@@ -97,7 +81,7 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
       if (group.$or.length === 1) {
         // Single condition - apply directly
         const condition = group.$or[0]
-        if (this.isConditionGroup(condition)) {
+        if (isConditionGroup(condition)) {
           return this.applyGroup(qb, condition, options)
         } else {
           return this.applyItem(qb, condition, options)
@@ -109,17 +93,17 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
         group.$or!.forEach((condition, index) => {
           if (index === 0) {
             // First condition uses where
-            if (this.isConditionGroup(condition)) {
+            if (isConditionGroup(condition)) {
               subQb.where((nestedQb) => this.applyGroup(nestedQb, condition, options))
             } else {
               this.applyItem(subQb, condition, options)
             }
           } else {
             // Subsequent conditions use orWhere
-            if (this.isConditionGroup(condition)) {
+            if (isConditionGroup(condition)) {
               subQb.orWhere((nestedQb) => this.applyGroup(nestedQb, condition, options))
             } else {
-              this.applyItemWithOr(subQb, condition, options)
+              this.applyItem(subQb, condition, options, true)
             }
           }
         })
@@ -132,117 +116,58 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
   }
 
   /**
-   * Apply a ConditionItem to Knex QueryBuilder using where
+   * Apply a ConditionItem to Knex QueryBuilder
    */
-  private applyItem(qb: Knex.QueryBuilder, item: ConditionItem, options?: ISerializationOptions): Knex.QueryBuilder {
-    const field = this.mapFieldName(item.field, options)
+  private applyItem(qb: Knex.QueryBuilder, item: ConditionItem, options?: ISerializationOptions, useOr = false): Knex.QueryBuilder {
+    const field = mapFieldName(item.field, options)
     const { op } = item
 
     switch (op) {
       case '$eq':
-        return qb.where(field, '=', item.value)
+        return useOr ? qb.orWhere(field, '=', item.value) : qb.where(field, '=', item.value)
 
       case '$ne':
-        return qb.where(field, '<>', item.value)
+        return useOr ? qb.orWhere(field, '<>', item.value) : qb.where(field, '<>', item.value)
 
       case '$gt':
-        return qb.where(field, '>', item.value)
+        return useOr ? qb.orWhere(field, '>', item.value) : qb.where(field, '>', item.value)
 
       case '$gte':
-        return qb.where(field, '>=', item.value)
+        return useOr ? qb.orWhere(field, '>=', item.value) : qb.where(field, '>=', item.value)
 
       case '$lt':
-        return qb.where(field, '<', item.value)
+        return useOr ? qb.orWhere(field, '<', item.value) : qb.where(field, '<', item.value)
 
       case '$lte':
-        return qb.where(field, '<=', item.value)
+        return useOr ? qb.orWhere(field, '<=', item.value) : qb.where(field, '<=', item.value)
 
       case '$in':
-        return qb.whereIn(field, item.value)
+        return useOr ? qb.orWhereIn(field, item.value) : qb.whereIn(field, item.value)
 
-      case '$notin':
       case '$nin':
-        return qb.whereNotIn(field, item.value)
-
-      case '$like':
-        return qb.where(field, 'like', item.value)
-
-      case '$notlike':
-        return qb.whereNot(field, 'like', item.value)
-
-      case '$ilike':
-        // PostgreSQL case-insensitive LIKE
-        return qb.whereILike(field, item.value)
-
-      case '$between':
-        return qb.whereBetween(field, item.value)
-
-      case '$notbetween':
-        return qb.whereNotBetween(field, item.value)
-
-      case '$isnull':
-        return qb.whereNull(field)
-
-      case '$notnull':
-        return qb.whereNotNull(field)
-
-      default:
-        throw new Error(`Unsupported operator: ${op}`)
-    }
-  }
-
-  /**
-   * Apply a ConditionItem to Knex QueryBuilder using orWhere
-   */
-  private applyItemWithOr(qb: Knex.QueryBuilder, item: ConditionItem, options?: ISerializationOptions): Knex.QueryBuilder {
-    const field = this.mapFieldName(item.field, options)
-    const { op } = item
-
-    switch (op) {
-      case '$eq':
-        return qb.orWhere(field, '=', item.value)
-
-      case '$ne':
-        return qb.orWhere(field, '<>', item.value)
-
-      case '$gt':
-        return qb.orWhere(field, '>', item.value)
-
-      case '$gte':
-        return qb.orWhere(field, '>=', item.value)
-
-      case '$lt':
-        return qb.orWhere(field, '<', item.value)
-
-      case '$lte':
-        return qb.orWhere(field, '<=', item.value)
-
-      case '$in':
-        return qb.orWhereIn(field, item.value)
-
       case '$notin':
-        return qb.orWhereNotIn(field, item.value)
+        return useOr ? qb.orWhereNotIn(field, item.value) : qb.whereNotIn(field, item.value)
 
       case '$like':
-        return qb.orWhere(field, 'like', item.value)
+        return useOr ? qb.orWhere(field, 'like', item.value) : qb.where(field, 'like', item.value)
 
       case '$notlike':
-        return qb.orWhereNot(field, 'like', item.value)
+        return useOr ? qb.orWhereNot(field, 'like', item.value) : qb.whereNot(field, 'like', item.value)
 
       case '$ilike':
-        return qb.orWhereILike(field, item.value)
+        return useOr ? qb.orWhereILike(field, item.value) : qb.whereILike(field, item.value)
 
       case '$between':
-        return qb.orWhereBetween(field, item.value)
+        return useOr ? qb.orWhereBetween(field, item.value) : qb.whereBetween(field, item.value)
 
       case '$notbetween':
-        return qb.orWhereNotBetween(field, item.value)
+        return useOr ? qb.orWhereNotBetween(field, item.value) : qb.whereNotBetween(field, item.value)
 
       case '$isnull':
-        return qb.orWhereNull(field)
+        return useOr ? qb.orWhereNull(field) : qb.whereNull(field)
 
       case '$notnull':
-        return qb.orWhereNotNull(field)
+        return useOr ? qb.orWhereNotNull(field) : qb.whereNotNull(field)
 
       default:
         throw new Error(`Unsupported operator: ${op}`)

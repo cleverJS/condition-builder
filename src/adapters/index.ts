@@ -6,6 +6,7 @@ export {
   ISerializationOptions,
   FieldNameMapping,
 } from './interfaces/IConditionAdapter'
+export { isConditionGroup, mapFieldName } from './adapter-utils'
 export { IAdapterPlugin } from './interfaces/IAdapterPlugin'
 export { AdapterType } from './AdapterType'
 export type { AdapterType as AdapterTypeValue } from './AdapterType'

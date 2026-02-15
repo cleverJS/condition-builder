@@ -1,6 +1,26 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest';
 
-import { KendoFilterAdapter } from '../src/adapters'
+
+
+import { AdapterType, ConditionAdapterRegistry, KendoFilterAdapter } from '../src/adapters';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 describe('KendoFilterAdapter', () => {
   const adapter = new KendoFilterAdapter()
@@ -561,6 +581,72 @@ describe('KendoFilterAdapter', () => {
       expect(builder).toHaveProperty('orGroup')
       expect(builder).toHaveProperty('build')
     })
+
+    it('deserializes with field mapping via registry', () => {
+      const kendoFilter = {
+        logic: 'and',
+        filters: [{ operator: 'eq' as const, field: 'Applicable', value: 0 }],
+      }
+
+      const registry = ConditionAdapterRegistry.getInstance()
+      registry.register(AdapterType.KENDO, undefined, new KendoFilterAdapter())
+
+      const deserializer = registry.getDeserializer(AdapterType.KENDO)
+      const builder = deserializer.deserialize(kendoFilter, { fieldMapping: { Applicable: 'applicable' } })
+      const condition = builder.build()
+
+      expect(condition).toEqual({ field: 'applicable', op: '$eq', value: 0 })
+    })
+  })
+
+  describe('SQL wildcard escaping', () => {
+    it('escapes % in contains filter value', () => {
+      const kendoFilter = {
+        field: 'discount',
+        operator: 'contains' as const,
+        value: '50%',
+      }
+
+      const result = adapter.deserialize(kendoFilter).build()
+
+      expect(result).toEqual({ field: 'discount', op: '$ilike', value: '%50\\%%' })
+    })
+
+    it('escapes _ in startswith filter value', () => {
+      const kendoFilter = {
+        field: 'code',
+        operator: 'startswith' as const,
+        value: 'item_',
+      }
+
+      const result = adapter.deserialize(kendoFilter).build()
+
+      expect(result).toEqual({ field: 'code', op: '$ilike', value: 'item\\_%' })
+    })
+
+    it('escapes backslash in endswith filter value', () => {
+      const kendoFilter = {
+        field: 'path',
+        operator: 'endswith' as const,
+        value: 'C:\\',
+      }
+
+      const result = adapter.deserialize(kendoFilter).build()
+
+      // Input 'C:\' → escaped to 'C:\\' → wrapped as '%C:\\'
+      expect(result).toEqual({ field: 'path', op: '$ilike', value: '%C:\\\\' })
+    })
+
+    it('escapes wildcards in doesnotcontain filter', () => {
+      const kendoFilter = {
+        field: 'text',
+        operator: 'doesnotcontain' as const,
+        value: '100%_done',
+      }
+
+      const result = adapter.deserialize(kendoFilter).build()
+
+      expect(result).toEqual({ field: 'text', op: '$notlike', value: '%100\\%\\_done%' })
+    })
   })
 })
-

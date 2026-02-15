@@ -539,4 +539,56 @@ describe('ConditionBuilder', () => {
       })
     })
   })
+
+  describe('Validation edge cases', () => {
+    it('throws on empty array for $in', () => {
+      expect(() => ConditionBuilder.create().where('tags').in([])).toThrow('$in requires a non-empty array')
+    })
+
+    it('throws on empty array for $notin via notIn()', () => {
+      expect(() => ConditionBuilder.create().where('tags').notIn([])).toThrow('$notin requires a non-empty array')
+    })
+
+    it('throws on unknown operator in where(field, op, value)', () => {
+      expect(() => ConditionBuilder.create().where('field', '$bogus' as any, 123)).toThrow('Unknown operator: $bogus')
+    })
+
+    it('throws on nesting depth exceeding MAX_NESTING_DEPTH', () => {
+      const nestDeeply = (builder: ConditionBuilder, depth: number): void => {
+        if (depth <= 0) return
+        builder.andGroup((b) => nestDeeply(b, depth - 1))
+      }
+
+      expect(() => {
+        const builder = ConditionBuilder.create()
+        nestDeeply(builder, ConditionBuilder.MAX_NESTING_DEPTH + 1)
+      }).toThrow(`Maximum nesting depth of ${ConditionBuilder.MAX_NESTING_DEPTH} exceeded`)
+    })
+
+    it('allows nesting up to MAX_NESTING_DEPTH', () => {
+      const nestDeeply = (builder: ConditionBuilder, depth: number): void => {
+        if (depth <= 0) return
+        builder.andGroup((b) => nestDeeply(b, depth - 1))
+      }
+
+      expect(() => {
+        const builder = ConditionBuilder.create()
+        nestDeeply(builder, ConditionBuilder.MAX_NESTING_DEPTH - 1)
+      }).not.toThrow()
+    })
+  })
+
+  describe('Null operator output shape', () => {
+    it('isNull() produces condition without value property', () => {
+      const result = ConditionBuilder.create().where('field').isNull().build()
+      expect(result).toEqual({ field: 'field', op: '$isnull' })
+      expect('value' in result).toBe(false)
+    })
+
+    it('isNotNull() produces condition without value property', () => {
+      const result = ConditionBuilder.create().where('field').isNotNull().build()
+      expect(result).toEqual({ field: 'field', op: '$notnull' })
+      expect('value' in result).toBe(false)
+    })
+  })
 })

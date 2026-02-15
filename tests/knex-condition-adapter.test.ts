@@ -276,8 +276,7 @@ describe('KnexConditionAdapter', () => {
     expect(sql.sql).toMatch(/`maybe`\s+is null/i)
   })
 
-  it.skip('can be used to execute actual queries', async () => {
-    // Skipped: requires building better-sqlite3 native bindings
+  it('can be used to execute actual queries', async () => {
     // Create a test table
     await db.schema.createTable('test_users', (table) => {
       table.increments('id')
@@ -306,8 +305,7 @@ describe('KnexConditionAdapter', () => {
     expect(results[0].age).toBe(30)
   })
 
-  it.skip('handles complex real-world query', async () => {
-    // Skipped: requires building better-sqlite3 native bindings
+  it('handles complex real-world query', async () => {
     // Create test table
     await db.schema.createTable('users', (table) => {
       table.increments('id')
@@ -368,5 +366,35 @@ describe('KnexConditionAdapter', () => {
 
     expect(query.toSQL().sql).toBe('select * from `users` where `id` = ?')
     expect(query.toSQL().bindings).toEqual([1])
+  })
+
+  it('handles $nin in OR groups', () => {
+    const condition: ConditionGroup = {
+      $or: [
+        { field: 'status', op: '$eq', value: 'active' },
+        { field: 'category', op: '$nin', value: ['archived', 'deleted'] },
+      ],
+    }
+
+    const applier = adapter.serialize(condition)
+    const query = applier(db('users'))
+    const sql = query.toSQL()
+
+    expect(sql.sql).toMatch(/`status`\s*=\s*\?/)
+    expect(sql.sql).toMatch(/or\s+`category`\s+not in\s+\(\?, \?\)/i)
+    expect(sql.bindings).toEqual(['active', 'archived', 'deleted'])
+  })
+
+  it('handles field name mapping', () => {
+    const condition: ConditionGroup = {
+      $and: [{ field: 'userName', op: '$eq', value: 'Alice' }],
+    }
+
+    const applier = adapter.serialize(condition, { fieldMapping: { userName: 'user_name' } })
+    const query = applier(db('users'))
+    const sql = query.toSQL()
+
+    expect(sql.sql).toMatch(/`user_name`\s*=\s*\?/)
+    expect(sql.bindings).toEqual(['Alice'])
   })
 })
