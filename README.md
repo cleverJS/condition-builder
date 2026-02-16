@@ -1,43 +1,82 @@
 # Condition Builder
 
 A small, type-safe TypeScript library for building **ORM-agnostic**, portable, JSON-serializable condition
-objects for queries and filters. Write your query logic once and use it with any database layer - Knex, MikroORM,
-or your custom implementation. The library provides strict type checking for operators and their values, making
-query construction safe and predictable.
+objects for queries and filters. Write your query logic once and use it with any database layer — Knex, MikroORM,
+or your custom implementation.
 
 ## Key Features
-- **ORM/Database Agnostic**: Unified abstraction layer - write conditions once, use with any query builder or ORM
-- **No Vendor Lock-In**: Easily switch between Knex, MikroORM, or implement custom adapters for any database layer
-- **Type-Safe Operators**: All operators (`$eq`, `$gt`, `$like`, etc.) are strictly typed with their allowed value types
-- **Typed Schema Support**: Optional generic type parameter for field name autocomplete and type checking
-- **Fluent Builder API**: Chainable builder pattern for constructing condition trees
-- **JSON Serializable**: Store, transmit, and cache conditions - perfect for APIs, saved filters, and dynamic queries
-- **Flexible Input**: Supports multiple input formats with runtime validation
-- **AND/OR Groups**: Create nested condition groups with proper type inference
-- **Built-in Adapters**: Out-of-the-box support for Knex, MikroORM, and Kendo UI filters
+- **ORM/Database Agnostic** — unified abstraction layer, write conditions once, use with any query builder or ORM
+- **No Vendor Lock-In** — switch between Knex, MikroORM, or implement custom adapters
+- **Type-Safe Operators** — all operators (`$eq`, `$gt`, `$like`, etc.) are strictly typed with their allowed value types
+- **Typed Schema Support** — optional generic type parameter for field name autocomplete and type checking
+- **Fluent Builder API** — chainable builder pattern for constructing condition trees
+- **JSON Serializable** — store, transmit, and cache conditions; perfect for APIs, saved filters, and dynamic queries
+- **Field Mapping** — rename fields during serialization/deserialization (e.g., camelCase to snake_case)
+- **AND/OR Groups** — create nested condition groups with proper type inference
+- **Built-in Adapters** — out-of-the-box support for Knex, MikroORM, and Kendo UI filters
 
 ## Installation
 ```bash
-npm install @cleverJS/condition-builder
+npm install @cleverjs/condition-builder
 # or
-pnpm install @cleverJS/condition-builder
+pnpm install @cleverjs/condition-builder
+```
+
+Peer dependencies (install only what you need):
+```bash
+# For Knex adapter
+pnpm install knex
+
+# For MikroORM adapter
+pnpm install @mikro-orm/core
 ```
 
 ## Quick Start
-```typescript
-import { ConditionBuilder } from '@cleverJS/condition-builder'
 
-// Simple conditions with fluent API
-const builder = ConditionBuilder.create()
-  .where('age').gt(21)                // number for $gt
-  .where('name').like('%John%')       // string for $like
-  .where('tags').in(['A', 'B'])       // string[] for $in
-  .where('range').between(1, 10)      // numbers for $between
+All top-level `.where()` calls are combined with AND logic. Use `.orGroup()` when you need OR.
+
+### Fluent API
+```typescript
+import { ConditionBuilder } from '@cleverjs/condition-builder'
+
+const condition = ConditionBuilder.create()
+  .where('age').gt(21)
+  .where('name').like('%John%')
+  .where('tags').in(['A', 'B'])
+  .where('range').between(1, 10)
+  .build()
 ```
 
+### Direct Operator Shorthand
 ```typescript
-import { ConditionBuilder } from '@cleverJS/condition-builder'
+const condition = ConditionBuilder.create('status', '$eq', 'active').build()
+// → { field: 'status', op: '$eq', value: 'active' }
+```
 
+### Object Notation
+```typescript
+const condition = ConditionBuilder.create()
+  .where({
+    status: 'active',               // simple value → $eq
+    age: { $gt: 21 },               // typed operators
+    tags: ['A', 'B'],               // array → $in
+    search: { $like: '%term%' },    // pattern match
+    range: { $between: [1, 10] },   // typed tuples
+  })
+  .build()
+```
+
+### Object Notation on Create
+```typescript
+const condition = ConditionBuilder.create({
+  status: 'active',
+  age: { $gt: 21 },
+  tags: ['A', 'B'],
+}).build()
+```
+
+### With Typed Schema
+```typescript
 interface UserSchema {
   name: string
   age: number
@@ -45,51 +84,147 @@ interface UserSchema {
   isActive: boolean
 }
 
-const builder = ConditionBuilder.create<UserSchema>()
-  .where('name').eq('John')           // ✅ 'name' is autocompleted
-  .where('age').gt(21)                // ✅ 'age' is autocompleted
+const condition = ConditionBuilder.create<UserSchema>()
+  .where('name').eq('John')             // 'name' is autocompleted
+  .where('age').gt(21)                  // 'age' is autocompleted
   .where('email').ilike('%@example.com')
+  .build()
+
+// TypeScript catches typos:
+// .where('nam').eq('John')             // ❌ Error: 'nam' does not exist
 ```
 
-```typescript
-import { ConditionBuilder } from '@cleverJS/condition-builder'
+### CB Shorthand Alias
 
-// Object notation with type checking
+`CB` is exported as a shorthand alias for `ConditionBuilder`:
+
+```typescript
+import { CB } from '@cleverjs/condition-builder'
+
+const condition = CB.create()
+  .where('status').eq('active')
+  .build()
+```
+
+## API Reference
+
+### ConditionBuilder
+
+#### Static Methods
+
+| Method | Description |
+|--------|-------------|
+| `create()` | Start a new empty builder |
+| `create(field, op, value)` | Start with a single condition |
+| `create(descriptor)` | Start with multiple conditions from an object |
+| `from(condition)` | Create a builder from an existing `ConditionGroup` or `ConditionItem` |
+
+#### Instance Methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `where(field)` | `FieldBuilder` | Start a field chain for the given field |
+| `where(field, op, value)` | `ConditionBuilder` | Add a condition directly |
+| `where(descriptor)` | `ConditionBuilder` | Add multiple conditions from an object |
+| `andGroup(callback)` | `ConditionBuilder` | Create a nested AND group |
+| `orGroup(callback)` | `ConditionBuilder` | Create a nested OR group |
+| `addCondition(item)` | `ConditionBuilder` | Add a raw `ConditionItem` directly |
+| `build()` | `Condition` | Build the final JSON condition object |
+
+**`ConditionBuilder.from()` example:**
+```typescript
+// Resume building from an existing condition (e.g., loaded from DB or API)
+const existing = { $and: [{ field: 'status', op: '$eq', value: 'active' }] }
+const builder = ConditionBuilder.from(existing)
+builder.where('age').gt(18)
+
+// Works with a single ConditionItem too
+const item = { field: 'name', op: '$eq', value: 'John' }
+const builder2 = ConditionBuilder.from(item)
+builder2.where('deletedAt').isNull()
+```
+
+**`addCondition()` example:**
+```typescript
+// Useful for programmatically adding pre-built condition items
 const builder = ConditionBuilder.create()
-  .where({
-    status: 'active',                 // simple value → $eq
-    age: { $gt: 21 },                 // typed operators
-    tags: ['A', 'B'],                 // array → $in
-    search: { $like: '%term%' },      // pattern match
-    range: { $between: [1, 10] }      // typed tuples
-  })
+  .where('status').eq('active')
+  .addCondition({ field: 'role', op: '$in', value: ['admin', 'editor'] })
+  .build()
 ```
 
+### FieldBuilder
+
+Returned by `builder.where(field)`. Provides typed operator methods, all returning `ConditionBuilder` for chaining.
+
+#### Comparison
+| Method | Operator | Accepts |
+|--------|----------|---------|
+| `eq(value)` | `$eq` | `string \| number \| Date \| boolean \| null` |
+| `ne(value)` | `$ne` | `string \| number \| Date \| boolean \| null` |
+| `gt(value)` | `$gt` | `string \| number \| Date` |
+| `gte(value)` | `$gte` | `string \| number \| Date` |
+| `lt(value)` | `$lt` | `string \| number \| Date` |
+| `lte(value)` | `$lte` | `string \| number \| Date` |
+
+#### Pattern
+| Method | Operator | Accepts |
+|--------|----------|---------|
+| `like(value)` | `$like` | `string` |
+| `ilike(value)` | `$ilike` | `string` |
+| `notLike(value)` | `$notlike` | `string` |
+
+#### Array
+| Method | Operator | Accepts |
+|--------|----------|---------|
+| `in(values)` | `$in` | `Array<string \| number>` |
+| `notIn(values)` | `$notin` | `Array<string \| number>` |
+
+#### Range
+| Method | Operator | Accepts |
+|--------|----------|---------|
+| `between(start, end)` | `$between` | `string \| number \| Date` each |
+| `notBetween(start, end)` | `$notbetween` | `string \| number \| Date` each |
+
+#### Null
+| Method | Operator | Accepts |
+|--------|----------|---------|
+| `isNull()` | `$isnull` | — |
+| `isNotNull()` | `$notnull` | — |
+
+#### Chaining Helper
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `and()` | `ConditionBuilder` | Returns the parent builder (useful in single-expression chains) |
+
+`and()` is useful when you have a `FieldBuilder` reference and want to return to the parent builder:
 ```typescript
-import { ConditionBuilder } from '@cleverJS/condition-builder'
+const builder = ConditionBuilder.create()
+const fieldBuilder = builder.where('name') // returns FieldBuilder
 
-// Object notation on create with type checking
-const builder = ConditionBuilder.create({
-  status: 'active',                   // simple value → $eq
-  age: { $gt: 21 },                   // typed operators
-  tags: ['A', 'B'],                   // array → $in
-  search: { $like: '%term%' },        // pattern match
-  range: { $between: [1, 10] }        // typed tuples
-})
+// Later, get back to the parent builder without applying an operator
+fieldBuilder.and().where('age').gt(18)
 ```
 
-```typescript
-import { ConditionBuilder } from '@cleverJS/condition-builder'
+### Operators
 
-// Get JSON output
-const json = builder.build()
-```
+All operators are prefixed with `$` and strictly typed:
+
+| Category | Operators | Value Type |
+|----------|-----------|------------|
+| **Basic** | `$eq`, `$ne` | `string \| number \| Date \| boolean \| null` |
+| **Comparison** | `$gt`, `$gte`, `$lt`, `$lte` | `string \| number \| Date` |
+| **Pattern** | `$like`, `$ilike`, `$notlike` | `string` |
+| **Array** | `$in`, `$notin` (`$nin` alias) | `Array<string \| number>` |
+| **Between** | `$between`, `$notbetween` | `[start, end]` where each is `string \| number \| Date` |
+| **Null** | `$isnull`, `$notnull` | no value |
 
 ## Type Safety
+
 The library provides compile-time type checking for operators and their values:
 
 ```typescript
-// ✅ These compile - correct value types
+// ✅ These compile — correct value types
 ConditionBuilder.create().where({
   name: { $like: '%John%' },           // string for $like
   age: { $gt: 18 },                    // number for $gt
@@ -97,13 +232,6 @@ ConditionBuilder.create().where({
   range: { $between: [1, 10] },        // [number, number] for $between
   status: { $eq: null },               // null allowed for $eq
 })
-```
-
-```typescript
-// For null checks, just specify the field
-ConditionBuilder.create()
-  .where('deleted').isNull()           // No value needed
-  .where('active').isNotNull()         // No value needed
 ```
 
 ```typescript
@@ -116,204 +244,162 @@ ConditionBuilder.create().where({
 })
 ```
 
-## API Reference
+## Nested Conditions
 
-### ConditionBuilder
-- `create()`: Start a new condition builder
-- `create(field, op, value)`: Start with a single condition
-- `create(descriptor)`: Start with multiple conditions from an object
-- `from(condition)`: Static method to create a builder from an existing `ConditionGroup` or `ConditionItem`
-- `where()`: Add conditions in multiple formats:
-  ```typescript
-  where(field: string): FieldBuilder                    // Chain operators
-  where(field: string, op: Operator, value: T): this   // Direct operator
-  where(descriptor: WhereDescriptor): this             // Object notation
-  ```
-- `andGroup(callback)`: Create nested AND group
-- `orGroup(callback)`: Create nested OR group
-- `raw(sql, bindings?)`: Add a raw SQL condition with optional parameter bindings
-- `build()`: Get the final condition object
-
-**Example: Initialize from existing conditions**
 ```typescript
-const existing = { $and: [{ field: 'status', op: '$eq', value: 'active' }] }
-const builder1 = ConditionBuilder.from(existing)
-builder1.where('age').gt(18) // Continue building with any field name
-
-// Works with ConditionItem too
-const item = { field: 'name', op: '$eq', value: 'John' }
-const builder2 = ConditionBuilder.from(item)
-builder2.where('age').gt(21)
-builder2.where('deletedAt').isNull()
-```
-
-### Operators
-All operators are prefixed with $ and strictly typed:
-
-#### Basic Operators
-- `$eq`: Equals (any value)
-- `$ne`: Not equals (any value)
-
-#### Comparison Operators
-- `$gt`, `$gte`: Greater than (number/string/Date)
-- `$lt`, `$lte`: Less than (number/string/Date)
-
-#### Pattern Operators
-- `$like`: Pattern match (string only)
-- `$ilike`: Case-insensitive pattern (string only)
-- `$notlike`: Pattern not match (string only)
-
-#### Array Operators
-- `$in`: In array (string[]/number[])
-- `$notin`: Not in array (string[]/number[])
-
-#### Between Operators
-- `$between`: Between range ([start, end])
-- `$notbetween`: Not between range ([start, end])
-
-#### Null Operators
-- `$isnull`: Is null (no value needed)
-- `$notnull`: Is not null (no value needed)
-
-## Examples
-
-### Nested Conditions
-```typescript
-const builder = ConditionBuilder.create()
-  .where('status', '$eq', 'active')
+const condition = ConditionBuilder.create()
+  .where('status').eq('active')
   .andGroup(group => group
-    .where('age', '$gt', 18)
-    .where('type', '$in', ['user', 'admin'])
+    .where('age').gt(18)
+    .where('type').in(['user', 'admin'])
   )
   .orGroup(group => group
-    .where('vip', '$eq', true)
-    .where('level', '$gte', 5)
+    .where('vip').eq(true)
+    .where('level').gte(5)
   )
+  .build()
+
+// Output:
+// {
+//   $and: [
+//     { field: 'status', op: '$eq', value: 'active' },
+//     {
+//       $and: [
+//         { field: 'age', op: '$gt', value: 18 },
+//         { field: 'type', op: '$in', value: ['user', 'admin'] }
+//       ]
+//     },
+//     {
+//       $or: [
+//         { field: 'vip', op: '$eq', value: true },
+//         { field: 'level', op: '$gte', value: 5 }
+//       ]
+//     }
+//   ]
+// }
 ```
 
-### Object Notation with Explicit Types
+Groups can be nested to any depth (up to 50 levels):
+
 ```typescript
-const conditions = {
-  // Simple equality
-  status: 'active',
-
-  // Comparison with numbers
-  age: { $gte: 18 },
-  score: { $lt: 100 },
-
-  // Pattern matching
-  email: { $like: '%@example.com' },
-  name: { $ilike: 'john%' },
-
-  // Arrays and ranges
-  tags: { $in: ['premium', 'trial'] },
-  range: { $between: [0, 999] },
-}
-
-const builder = ConditionBuilder.create().where(conditions)
+const condition = ConditionBuilder.create()
+  .where('active').eq(true)
+  .orGroup(outer => outer
+    .andGroup(inner => inner
+      .where('role').eq('admin')
+      .where('department').in(['engineering', 'security'])
+    )
+    .andGroup(inner => inner
+      .where('role').eq('manager')
+      .where('level').gte(3)
+    )
+  )
+  .build()
 ```
 
-### Using Null Checks
+## Null Checks
+
+Use `.isNull()` and `.isNotNull()` for explicit null checks. These produce conditions with no `value` property:
+
 ```typescript
-const builder = ConditionBuilder.create()
-  .where('deletedAt').isNull()        // Find non-deleted records
-  .where('email').isNotNull()         // Find records with email
+const condition = ConditionBuilder.create()
+  .where('deletedAt').isNull()          // Find non-deleted records
+  .where('email').isNotNull()           // Find records with email
   .where('status').eq('active')
+  .build()
+
+// Output:
+// {
+//   $and: [
+//     { field: 'deletedAt', op: '$isnull' },
+//     { field: 'email', op: '$notnull' },
+//     { field: 'status', op: '$eq', value: 'active' }
+//   ]
+// }
 ```
 
-### Raw SQL Conditions
-For complex or database-specific SQL conditions that can't be expressed with standard operators, you can use raw SQL:
-
-```typescript
-// PostgreSQL array contains operator
-const builder = ConditionBuilder.create()
-  .raw('roles @> ARRAY[?]::varchar[]', [['admin', 'user']])
-
-// Complex JSON condition
-const builder2 = ConditionBuilder.create()
-  .where('age').gt(18)
-  .raw("data->>'status' = ?", ['active'])
-
-// Without bindings
-const builder3 = ConditionBuilder.create()
-  .raw('created_at > NOW() - INTERVAL 7 DAY')
-
-// Combine with other conditions
-const builder4 = ConditionBuilder.create()
-  .where('type').eq('user')
-  .orGroup(b => b
-    .where('role').eq('admin')
-    .raw("permissions @> ?::jsonb", [JSON.stringify({ write: true })])
-  )
-```
-
-**Important Notes:**
-- Use `?` as placeholders for parameter bindings to prevent SQL injection
-- Bindings are passed as an array as the second parameter
-- Array values in bindings are automatically handled (e.g., `[['admin', 'user']]` for PostgreSQL arrays)
-- Raw conditions work with all adapters (Knex, MikroORM) but the SQL syntax must be compatible with your database
-- For **MikroORM**: The adapter converts raw conditions to MikroORM's `raw()` helper function automatically
-- For **Knex**: The adapter converts raw conditions to `whereRaw()` or `orWhereRaw()` methods
+**Note:** `.eq(null)` produces `{ op: '$eq', value: null }`, which is different from `.isNull()` which produces `{ op: '$isnull' }`. Use `.isNull()` / `.isNotNull()` when you need SQL `IS NULL` / `IS NOT NULL` semantics.
 
 ## Adapters
 
-The library includes adapters to convert between external filter formats and condition objects:
+Adapters convert between `Condition` objects and external formats. They implement `IConditionSerializer` (condition → external) or `IConditionDeserializer` (external → condition).
 
-### Converting TO Database Queries (Serializers)
+### Knex Adapter (Serializer)
+
+Converts a `Condition` to a function that applies WHERE clauses to a Knex QueryBuilder.
 
 ```typescript
-import { 
-  KnexConditionAdapter, 
-  MikroOrmConditionAdapter 
-} from '@cleverJS/condition-builder'
+import { ConditionBuilder, KnexConditionAdapter } from '@cleverjs/condition-builder'
 
-// Use with Knex
-const knexAdapter = new KnexConditionAdapter()
 const condition = ConditionBuilder.create()
   .where('status').eq('active')
   .where('age').gt(18)
+  .orGroup(g => g
+    .where('role').eq('admin')
+    .where('vip').eq(true)
+  )
   .build()
 
-const applyConditions = knexAdapter.serialize(condition)
-const knexQuery = knex('users')
-applyConditions(knexQuery) // Applies conditions to Knex query
+const adapter = new KnexConditionAdapter()
+const applyConditions = adapter.serialize(condition)
 
-// Use with MikroORM
-const mikroAdapter = new MikroOrmConditionAdapter()
-const where = mikroAdapter.serialize(condition)
-await em.find(User, where)
+// applyConditions is a function: (qb: Knex.QueryBuilder) => Knex.QueryBuilder
+const results = await knex('users').modify(applyConditions)
 ```
 
-### Converting FROM External Formats (Deserializers)
+`knex` is an optional peer dependency — the adapter throws a helpful error if it's not installed.
 
-#### Kendo UI DataSource Filter Adapter
+### MikroORM Adapter (Serializer)
 
-Convert Kendo UI DataSource filters to a `ConditionBuilder`:
+Converts a `Condition` to a MikroORM `FilterQuery<T>` object.
 
 ```typescript
-import { KendoFilterAdapter } from '@cleverJS/condition-builder'
+import { ConditionBuilder, MikroOrmConditionAdapter } from '@cleverjs/condition-builder'
+
+const condition = ConditionBuilder.create()
+  .where('status').eq('active')
+  .where('age').between(18, 65)
+  .build()
+
+const adapter = new MikroOrmConditionAdapter()
+const where = adapter.serialize<User>(condition)
+
+const users = await em.find(User, where)
+```
+
+**Operator mapping notes:**
+- `$between` is converted to `{ $gte: start, $lte: end }`
+- `$notbetween` is converted to `{ $or: [{ $lt: start }, { $gt: end }] }`
+- `$notlike` is converted to `{ $not: { $like: value } }`
+- `$isnull` is converted to `{ field: null }`
+
+`@mikro-orm/core` is an optional peer dependency.
+
+### Kendo UI Filter Adapter (Deserializer)
+
+Converts Kendo UI DataSource filter objects into a `ConditionBuilder`, which you can continue building on.
+
+```typescript
+import { KendoFilterAdapter } from '@cleverjs/condition-builder'
 
 const adapter = new KendoFilterAdapter()
 
-// Simple Kendo filter
-const kendoFilter = {
+// Simple filter
+const builder = adapter.deserialize({
   field: 'name',
   operator: 'eq',
-  value: 'John'
-}
-
-// deserialize() returns a ConditionBuilder - you can continue building or get the final result
-const builder = adapter.deserialize(kendoFilter)
+  value: 'John',
+})
 const condition = builder.build()
-// Result: { field: 'name', op: '$eq', value: 'John' }
+// → { field: 'name', op: '$eq', value: 'John' }
 
-// You can also continue building after deserialization
-const builder2 = adapter.deserialize(kendoFilter)
-builder2.where('age').gt(18) // Add more conditions
-const finalCondition = builder2.build()
+// Continue building after deserialization
+builder.where('age').gt(18)
+```
 
-// Composite Kendo filter with logic
-const complexFilter = {
+**Composite filter with logic:**
+```typescript
+const builder = adapter.deserialize({
   logic: 'and',
   filters: [
     { field: 'category', operator: 'eq', value: 'electronics' },
@@ -321,16 +407,14 @@ const complexFilter = {
       logic: 'or',
       filters: [
         { field: 'price', operator: 'lt', value: 100 },
-        { field: 'onSale', operator: 'eq', value: true }
-      ]
-    }
-  ]
-}
+        { field: 'onSale', operator: 'eq', value: true },
+      ],
+    },
+  ],
+})
 
-const complexBuilder = adapter.deserialize(complexFilter)
-const conditionGroup = complexBuilder.build()
-// Result:
-// {
+const condition = builder.build()
+// → {
 //   $and: [
 //     { field: 'category', op: '$eq', value: 'electronics' },
 //     {
@@ -343,147 +427,278 @@ const conditionGroup = complexBuilder.build()
 // }
 ```
 
-**Supported Kendo Operators:**
-- `eq`, `neq` → `$eq`, `$ne`
-- `gt`, `gte`, `lt`, `lte` → `$gt`, `$gte`, `$lt`, `$lte`
-- `in` → `$in`
-- `contains` → `$ilike` with `%value%`
-- `doesnotcontain` → `$notlike` with `%value%`
-- `startswith` → `$ilike` with `value%`
-- `endswith` → `$ilike` with `%value`
-- `doesnotstartwith` → `$notlike` with `value%`
-- `doesnotendwith` → `$notlike` with `%value`
-- `isnull`, `isnotnull` → `$isnull`, `$notnull`
-- `isempty`, `isnotempty` → `$eq ''`, `$ne ''`
-- `isnullorempty` → `$or` group with `$isnull` and `$eq ''`
-- `isnotnullorempty` → `$and` group with `$notnull` and `$ne ''`
+**Supported Kendo operators** (case-insensitive):
 
-**Note:** Operators are case-insensitive, so `EQ`, `eq`, and `Eq` are all treated the same.
+| Kendo Operator | Condition Operator | Notes |
+|---|---|---|
+| `eq`, `neq` | `$eq`, `$ne` | `eq(null)` → `$isnull`, `neq(null)` → `$notnull` |
+| `gt`, `gte`, `lt`, `lte` | `$gt`, `$gte`, `$lt`, `$lte` | |
+| `in` | `$in` | |
+| `contains` | `$ilike` | wraps value: `%value%` |
+| `doesnotcontain` | `$notlike` | wraps value: `%value%` |
+| `startswith` | `$ilike` | wraps value: `value%` |
+| `endswith` | `$ilike` | wraps value: `%value` |
+| `doesnotstartwith` | `$notlike` | wraps value: `value%` |
+| `doesnotendwith` | `$notlike` | wraps value: `%value` |
+| `isnull`, `isnotnull` | `$isnull`, `$notnull` | |
+| `isempty`, `isnotempty` | `$eq ''`, `$ne ''` | |
+| `isnullorempty` | `$or` group | `$isnull` OR `$eq ''` |
+| `isnotnullorempty` | `$and` group | `$notnull` AND `$ne ''` |
 
-#### Adapter Registry
+Pattern values are automatically escaped to prevent SQL injection (`%`, `_`, `\` characters).
 
-The `ConditionAdapterRegistry` is a singleton that allows registering and retrieving adapters by type:
+### Adapter Registry
+
+`ConditionAdapterRegistry` is a singleton for managing adapters by type key:
 
 ```typescript
+import {
+  ConditionAdapterRegistry,
+  AdapterType,
+  KnexConditionAdapter,
+  MikroOrmConditionAdapter,
+  KendoFilterAdapter,
+} from '@cleverjs/condition-builder'
+
 const registry = ConditionAdapterRegistry.getInstance()
 
-const knexAdapter = new KnexConditionAdapter()
-registry.register(AdapterType.KNEX, knexAdapter)
+// Register serializers and deserializers
+registry.register(AdapterType.KNEX, new KnexConditionAdapter())
+registry.register(AdapterType.MIKROORM, new MikroOrmConditionAdapter())
+registry.register(AdapterType.KENDO, undefined, new KendoFilterAdapter())
 
-const mikroOrmAdapter = new MikroOrmConditionAdapter()
-registry.register(AdapterType.MIKROORM, mikroOrmAdapter)
+// Retrieve adapters
+const knex = registry.getSerializer(AdapterType.KNEX)
+const kendo = registry.getDeserializer(AdapterType.KENDO)
 
-const kendoAdapter = new KendoFilterAdapter()
-registry.register(AdapterType.KENDO, undefined, kendoAdapter)
+// Register custom adapters with any string key
+registry.register('custom', myCustomAdapter)
 
-const customAdapter = new CustomConditionAdapter()
-registry.register('custom_adapter', customAdapter)
+// Other methods
+registry.hasSerializer(AdapterType.KNEX)   // true
+registry.hasDeserializer(AdapterType.KNEX) // false
+registry.getRegisteredTypes()              // ['knex', 'mikroorm', 'kendo', 'custom']
+registry.unregister(AdapterType.KNEX)
+registry.clear()
 ```
 
-**Complete Example - API Endpoint:**
+### Custom Adapters
+
+To create a custom adapter, implement `IConditionSerializer` and/or `IConditionDeserializer`:
 
 ```typescript
-import { KendoFilterAdapter, ConditionBuilder, KnexConditionAdapter } from '@cleverJS/condition-builder'
+import type { Condition, IConditionSerializer, IConditionDeserializer } from '@cleverjs/condition-builder'
+import { ConditionBuilder } from '@cleverjs/condition-builder'
 
-// Express endpoint receiving Kendo UI Grid filter
+// Serializer: Condition → your target format
+class MySerializer implements IConditionSerializer<MyQueryFormat> {
+  public serialize(condition: Condition): MyQueryFormat {
+    // Convert condition tree to your target format
+  }
+}
+
+// Deserializer: your source format → ConditionBuilder
+class MyDeserializer implements IConditionDeserializer<MyFilterFormat> {
+  public deserialize(input: MyFilterFormat): ConditionBuilder {
+    // Convert your format into a ConditionBuilder
+  }
+}
+```
+
+Both interfaces accept an optional `options` parameter with `fieldMapping` for field name remapping.
+
+### Adapter Plugins
+
+You can also register adapters via the `IAdapterPlugin` interface:
+
+```typescript
+import type { IAdapterPlugin } from '@cleverjs/condition-builder'
+
+const myPlugin: IAdapterPlugin = {
+  type: 'my-adapter',
+  serializer: new MySerializer(),
+  deserializer: new MyDeserializer(),
+}
+
+registry.registerPlugin(myPlugin)
+```
+
+### Complete Example — API Endpoint
+
+```typescript
+import {
+  KendoFilterAdapter,
+  ConditionBuilder,
+  KnexConditionAdapter,
+} from '@cleverjs/condition-builder'
+
 app.post('/api/products/filter', async (req, res) => {
   const { filter } = req.body // Kendo filter from client
-  
-  // Convert Kendo filter to ConditionBuilder
+
+  // Convert Kendo filter → ConditionBuilder → Knex query
   const kendoAdapter = new KendoFilterAdapter()
   const builder = kendoAdapter.deserialize(filter)
-  
-  // You can modify the builder before applying
-  // builder.where('deletedAt').isNull() // Add extra conditions if needed
-  
-  // Build the final condition
+
+  // Optionally add server-side conditions
+  builder.where('deletedAt').isNull()
+
   const condition = builder.build()
-  
-  // Use with Knex
+
   const knexAdapter = new KnexConditionAdapter()
   const applyConditions = knexAdapter.serialize(condition)
-  
-  const query = knex('products')
-  applyConditions(query)
-  
-  const results = await query
+
+  const results = await knex('products').modify(applyConditions)
   res.json(results)
 })
 ```
 
-## Typed Schema Support
+## Field Mapping
 
-Get autocomplete and type checking for field names by providing a schema interface:
+All adapters support a `fieldMapping` option to rename fields during serialization or deserialization. This is useful when your API uses different field names than your database columns.
+
+### Deserialization (external → internal)
+
+Map incoming field names to your internal representation:
 
 ```typescript
-// Define your schema
-interface UserSchema {
-  id: number
-  name: string
-  email: string
-  age: number
-  isActive: boolean
-  createdAt: Date
+import { KendoFilterAdapter } from '@cleverjs/condition-builder'
+
+const adapter = new KendoFilterAdapter()
+
+const kendoFilter = {
+  logic: 'and',
+  filters: [
+    { field: 'user_id', operator: 'eq', value: 123 },
+    { field: 'created_at', operator: 'gt', value: '2023-01-01' },
+  ],
 }
 
-// Use it with ConditionBuilder
-const condition = ConditionBuilder.create<UserSchema>()
-  .where('name').eq('John')    // ✅ 'name' is autocompleted
-  .where('age').gt(18)          // ✅ 'age' is autocompleted
-  .where('email').ilike('%@example.com')  // ✅ Field names are type-checked
+// Map snake_case API fields → camelCase internal fields
+const condition = adapter.deserialize(kendoFilter, {
+  fieldMapping: {
+    user_id: 'userId',
+    created_at: 'createdAt',
+  },
+}).build()
 
-// TypeScript will catch typos:
-// .where('nam').eq('John')     // ❌ Error: Property 'nam' does not exist
+// → {
+//   $and: [
+//     { field: 'userId', op: '$eq', value: 123 },
+//     { field: 'createdAt', op: '$gt', value: '2023-01-01' }
+//   ]
+// }
 ```
 
-**Benefits:**
-- ✅ **ORM/Database Agnostic**: Build queries once, use everywhere - the same condition object works with Knex, MikroORM, or any custom implementation via adapters
-- ✅ **JSON Serializable**: Conditions can be stored, transmitted over network, or cached - perfect for API filters, saved searches, or dynamic queries
-- ✅ **Type-Safe**: Compile-time validation of field names, operators, and values prevents runtime errors
-- ✅ **IDE Autocomplete**: Full IntelliSense support for field names when using typed schemas
-- ✅ **Consistent API**: Same intuitive builder pattern regardless of your underlying database or ORM
-- ✅ **Testable**: Mock and test query logic without database dependencies
-- ✅ **Better Refactoring**: Schema changes are caught at compile-time across your entire codebase
-- ✅ **Self-Documenting**: Type definitions serve as living documentation of your data model
+### Serialization (internal → external)
+
+Map internal field names to database column names:
+
+```typescript
+import { MikroOrmConditionAdapter, ConditionBuilder } from '@cleverjs/condition-builder'
+
+const condition = ConditionBuilder.create()
+  .where('userId').eq(123)
+  .where('createdAt').gt('2023-01-01')
+  .build()
+
+const adapter = new MikroOrmConditionAdapter()
+const where = adapter.serialize(condition, {
+  fieldMapping: {
+    userId: 'user_id',
+    createdAt: 'created_at',
+  },
+})
+
+// → { $and: [{ user_id: 123 }, { created_at: { $gt: '2023-01-01' } }] }
+```
+
+### Round-Trip Mapping
+
+Combine both directions for a full pipeline:
+
+```typescript
+const kendoAdapter = new KendoFilterAdapter()
+const mikroAdapter = new MikroOrmConditionAdapter()
+
+// 1. Deserialize Kendo filter, mapping API fields → internal
+const condition = kendoAdapter.deserialize(kendoFilter, {
+  fieldMapping: { user_id: 'userId', email_address: 'emailAddress' },
+}).build()
+
+// 2. Serialize to MikroORM, mapping internal → DB columns
+const where = mikroAdapter.serialize(condition, {
+  fieldMapping: { userId: 'user_id', emailAddress: 'email_address' },
+})
+```
+
+Unmapped fields pass through unchanged.
+
+## Importing Types
+
+The library exports all types needed for working with conditions programmatically:
+
+```typescript
+// Core condition types
+import type { Condition, ConditionGroup, ConditionItem } from '@cleverjs/condition-builder'
+
+// Value types
+import type { SimpleValue, ComparisonValue, BetweenValue, Range } from '@cleverjs/condition-builder'
+
+// Operator types
+import type { Operator, BasicOperator, ComparisonOperator, PatternOperator } from '@cleverjs/condition-builder'
+
+// Adapter interfaces (for custom adapters)
+import type { IConditionSerializer, IConditionDeserializer, IAdapterPlugin } from '@cleverjs/condition-builder'
+
+// Descriptor type (for object notation)
+import type { WhereDescriptor } from '@cleverjs/condition-builder'
+```
 
 ## Output Format
 
-The library produces JSON objects with the following structure:
+`.build()` produces JSON objects. When the result contains a single condition, it is automatically unwrapped from the `$and` wrapper:
 
 ```typescript
-// Simple AND conditions
+// Single condition → unwrapped
+ConditionBuilder.create().where('name').eq('John').build()
+// → { field: 'name', op: '$eq', value: 'John' }
+
+// Multiple conditions → $and group
+ConditionBuilder.create().where('name').eq('John').where('age').gt(18).build()
+// → { $and: [{ field: 'name', op: '$eq', value: 'John' }, { field: 'age', op: '$gt', value: 18 }] }
+```
+
+**Single condition:**
+```json
+{ "field": "name", "op": "$eq", "value": "John" }
+```
+
+**AND conditions:**
+```json
 {
-  $and: [
-    { field: 'age', op: '$gt', value: 18 },
-    { field: 'status', op: '$eq', value: 'active' }
+  "$and": [
+    { "field": "age", "op": "$gt", "value": 18 },
+    { "field": "status", "op": "$eq", "value": "active" }
   ]
 }
+```
 
-// Nested groups
+**Nested groups:**
+```json
 {
-  $and: [
-    { field: 'role', op: '$eq', value: 'admin' },
+  "$and": [
+    { "field": "role", "op": "$eq", "value": "admin" },
     {
-      $or: [
-        { field: 'vip', op: '$eq', value: true },
-        { field: 'level', op: '$gte', value: 5 }
+      "$or": [
+        { "field": "vip", "op": "$eq", "value": true },
+        { "field": "level", "op": "$gte", "value": 5 }
       ]
     }
   ]
 }
+```
 
-// Null checks
-{
-  $and: [
-    { field: 'deletedAt', op: '$isnull' }
-  ]
-}
-
-// Raw SQL conditions
-{
-  $and: [
-    { field: 'age', op: '$gt', value: 18 },
-    { $raw: "data->>'status' = ?", bindings: ['active'] }
-  ]
-}
+**Null checks** (no `value` property):
+```json
+{ "field": "deletedAt", "op": "$isnull" }
 ```
