@@ -18,7 +18,7 @@ export type { KendoFilter, IKendoItem, IKendoGroup, KendoOperator } from './adap
 export { EKendoOperator } from './adapters'
 
 // Builder classes and main types
-export { ConditionBuilder, FieldBuilder, ConditionGroup, ConditionItem, Condition } from './builder'
+export { ConditionBuilder, CB, FieldBuilder, ConditionGroup, ConditionItem, Condition } from './builder'
 
 // Type system - descriptor types
 export type { WhereDescriptor } from './builder/interfaces/descriptors'

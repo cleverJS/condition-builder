@@ -1,6 +1,6 @@
 import { Condition, ConditionBuilder, ConditionGroup } from '../builder'
+import { escapeLikeValue, mapFieldName } from '../utils'
 
-import { mapFieldName } from './adapter-utils'
 import { IConditionDeserializer, IDeserializationOptions } from './interfaces/IConditionAdapter'
 
 /**
@@ -66,6 +66,42 @@ export type KendoOperator =
   | 'isnotnullorempty' // Is not null or empty
   | 'in' // In array
 
+type KendoConverter = (field: string, value: any) => Condition
+
+const KENDO_CONVERTERS: Record<string, KendoConverter> = {
+  eq: (field, value) => (value === null ? { field, op: '$isnull' } : { field, op: '$eq', value }),
+  neq: (field, value) => (value === null ? { field, op: '$notnull' } : { field, op: '$ne', value }),
+  gt: (field, value) => ({ field, op: '$gt', value }),
+  gte: (field, value) => ({ field, op: '$gte', value }),
+  lt: (field, value) => ({ field, op: '$lt', value }),
+  lte: (field, value) => ({ field, op: '$lte', value }),
+  in: (field, value) => ({ field, op: '$in', value }),
+  contains: (field, value) => ({ field, op: '$ilike', value: `%${escapeLikeValue(String(value))}%` }),
+  doesnotcontain: (field, value) => ({ field, op: '$notlike', value: `%${escapeLikeValue(String(value))}%` }),
+  startswith: (field, value) => ({ field, op: '$ilike', value: `${escapeLikeValue(String(value))}%` }),
+  endswith: (field, value) => ({ field, op: '$ilike', value: `%${escapeLikeValue(String(value))}` }),
+  doesnotstartwith: (field, value) => ({ field, op: '$notlike', value: `${escapeLikeValue(String(value))}%` }),
+  doesnotendwith: (field, value) => ({ field, op: '$notlike', value: `%${escapeLikeValue(String(value))}` }),
+  isnull: (field) => ({ field, op: '$isnull' }),
+  isnotnull: (field) => ({ field, op: '$notnull' }),
+  isempty: (field) => ({ field, op: '$eq', value: '' }),
+  isnotempty: (field) => ({ field, op: '$ne', value: '' }),
+  isnullorempty: (field) =>
+    ({
+      $or: [
+        { field, op: '$isnull' },
+        { field, op: '$eq', value: '' },
+      ],
+    }) as ConditionGroup,
+  isnotnullorempty: (field) =>
+    ({
+      $and: [
+        { field, op: '$notnull' },
+        { field, op: '$ne', value: '' },
+      ],
+    }) as ConditionGroup,
+}
+
 /**
  * Adapter to convert Kendo UI DataSource filter to ConditionGroup
  *
@@ -84,10 +120,6 @@ export type KendoOperator =
  * const conditionGroup = adapter.deserialize(kendoFilter)
  */
 export class KendoFilterAdapter implements IConditionDeserializer<KendoFilter> {
-  private static escapeLikeValue(value: string): string {
-    return value.replace(/[%_\\]/g, '\\$&')
-  }
-
   /**
    * Convert Kendo filter to ConditionBuilder
    * @param filter - The Kendo filter to deserialize
@@ -95,31 +127,25 @@ export class KendoFilterAdapter implements IConditionDeserializer<KendoFilter> {
    */
   public deserialize(filter: KendoFilter, options?: IDeserializationOptions): ConditionBuilder {
     let result: Condition
-    if (this.isCompositeFilter(filter)) {
-      result = this.convertCompositeFilter(filter, options)
+    if (this.#isCompositeFilter(filter)) {
+      result = this.#convertCompositeFilter(filter, options)
     } else {
-      result = this.convertSimpleFilter(filter, options)
+      result = this.#convertSimpleFilter(filter, options)
     }
 
     return ConditionBuilder.from(result)
   }
 
-  /**
-   * Type guard to check if a filter is a composite filter
-   */
-  private isCompositeFilter(filter: KendoFilter): filter is IKendoGroup {
+  #isCompositeFilter(filter: KendoFilter): filter is IKendoGroup {
     return 'logic' in filter && 'filters' in filter
   }
 
-  /**
-   * Convert a composite filter (with logic and nested filters) to ConditionGroup
-   */
-  private convertCompositeFilter(filter: IKendoGroup, options?: IDeserializationOptions): ConditionGroup {
+  #convertCompositeFilter(filter: IKendoGroup, options?: IDeserializationOptions): ConditionGroup {
     const conditions = filter.filters.map((f) => {
-      if (this.isCompositeFilter(f)) {
-        return this.convertCompositeFilter(f, options)
+      if (this.#isCompositeFilter(f)) {
+        return this.#convertCompositeFilter(f, options)
       } else {
-        return this.convertSimpleFilter(f, options)
+        return this.#convertSimpleFilter(f, options)
       }
     })
 
@@ -130,109 +156,16 @@ export class KendoFilterAdapter implements IConditionDeserializer<KendoFilter> {
     }
   }
 
-  /**
-   * Convert a simple Kendo filter to ConditionItem or ConditionGroup
-   */
-  private convertSimpleFilter(filter: IKendoItem, options?: IDeserializationOptions): Condition {
+  #convertSimpleFilter(filter: IKendoItem, options?: IDeserializationOptions): Condition {
     const { value } = filter
     const field = mapFieldName(filter.field, options)
-    // Normalize operator to lowercase for case-insensitive matching
     const operator = filter.operator.toLowerCase() as KendoOperator
 
-    switch (operator) {
-      case 'eq':
-        if (value === null) {
-          return { field, op: '$isnull' }
-        }
-
-        return { field, op: '$eq', value }
-
-      case 'neq':
-        if (value === null) {
-          return { field, op: '$notnull' }
-        }
-
-        return { field, op: '$ne', value }
-
-      case 'gt':
-        return { field, op: '$gt', value }
-
-      case 'gte':
-        return { field, op: '$gte', value }
-
-      case 'lt':
-        return { field, op: '$lt', value }
-
-      case 'lte':
-        return { field, op: '$lte', value }
-
-      case 'in':
-        return { field, op: '$in', value }
-
-      case 'contains': {
-        const escaped = KendoFilterAdapter.escapeLikeValue(String(value))
-        return { field, op: '$ilike', value: `%${escaped}%` }
-      }
-
-      case 'doesnotcontain': {
-        const escaped = KendoFilterAdapter.escapeLikeValue(String(value))
-        return { field, op: '$notlike', value: `%${escaped}%` }
-      }
-
-      case 'startswith': {
-        const escaped = KendoFilterAdapter.escapeLikeValue(String(value))
-        return { field, op: '$ilike', value: `${escaped}%` }
-      }
-
-      case 'endswith': {
-        const escaped = KendoFilterAdapter.escapeLikeValue(String(value))
-        return { field, op: '$ilike', value: `%${escaped}` }
-      }
-
-      case 'doesnotstartwith': {
-        const escaped = KendoFilterAdapter.escapeLikeValue(String(value))
-        return { field, op: '$notlike', value: `${escaped}%` }
-      }
-
-      case 'doesnotendwith': {
-        const escaped = KendoFilterAdapter.escapeLikeValue(String(value))
-        return { field, op: '$notlike', value: `%${escaped}` }
-      }
-
-      case 'isnull':
-        return { field, op: '$isnull' }
-
-      case 'isnotnull':
-        return { field, op: '$notnull' }
-
-      case 'isempty':
-        // 'isempty' typically means empty string
-        return { field, op: '$eq', value: '' }
-
-      case 'isnotempty':
-        // 'isnotempty' means not empty string
-        return { field, op: '$ne', value: '' }
-
-      case 'isnullorempty':
-        // 'isnullorempty' means null OR empty string - create an OR group
-        return {
-          $or: [
-            { field, op: '$isnull' },
-            { field, op: '$eq', value: '' },
-          ],
-        } as ConditionGroup
-
-      case 'isnotnullorempty':
-        // 'isnotnullorempty' means not null AND not empty string - create an AND group
-        return {
-          $and: [
-            { field, op: '$notnull' },
-            { field, op: '$ne', value: '' },
-          ],
-        } as ConditionGroup
-
-      default:
-        throw new Error(`Unsupported Kendo operator: ${filter.operator}`)
+    const converter = KENDO_CONVERTERS[operator]
+    if (!converter) {
+      throw new Error(`Unsupported Kendo operator: ${filter.operator}`)
     }
+
+    return converter(field, value)
   }
 }

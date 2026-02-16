@@ -1,9 +1,11 @@
+import { deepClone } from '../utils'
+
 import { FieldBuilder } from './FieldBuilder'
 import { WhereDescriptor } from './interfaces/descriptors'
 import { Condition, ConditionGroup, ConditionItem, Operator, Range } from './interfaces/types'
 
 export class ConditionBuilder<TSchema = Record<string, any>> {
-  private static readonly MAX_NESTING_DEPTH = 50
+  static readonly #MAX_NESTING_DEPTH = 50
 
   readonly #root: ConditionGroup
   readonly #current: ConditionGroup[] = []
@@ -42,14 +44,18 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
     {} as Record<string, { method: string }>
   )
 
+  public static get MAX_NESTING_DEPTH(): number {
+    return ConditionBuilder.#MAX_NESTING_DEPTH
+  }
+
   public constructor(initialCondition?: Condition) {
     if (initialCondition) {
       // If it's a ConditionGroup, use it as root
       if ('$and' in initialCondition || '$or' in initialCondition) {
-        this.#root = this.#deepClone(initialCondition)
+        this.#root = deepClone(initialCondition)
       } else {
         // If it's a ConditionItem, wrap it in an $and group
-        this.#root = { $and: [this.#deepClone(initialCondition as ConditionItem)] }
+        this.#root = { $and: [deepClone(initialCondition as ConditionItem)] }
       }
     } else {
       this.#root = { $and: [] }
@@ -72,11 +78,11 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
     const builder = new ConditionBuilder<TSchema>()
 
     if (ConditionBuilder.#isWhereDescriptor(arg)) {
-      return builder.where(builder.#deepClone(arg))
+      return builder.where(deepClone(arg))
     }
 
     if (arg && op !== undefined) {
-      return builder.where(arg as keyof TSchema & string, op, builder.#deepClone(value))
+      return builder.where(arg as keyof TSchema & string, op, deepClone(value))
     }
 
     return builder
@@ -100,14 +106,14 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
     value?: unknown
   ): ConditionBuilder<TSchema> | FieldBuilder<TSchema> {
     if (ConditionBuilder.#isWhereDescriptor(arg)) {
-      return this.#handleWhereDescriptor(this.#deepClone(arg))
+      return this.#handleWhereDescriptor(deepClone(arg))
     }
 
     if (op === undefined) {
       return new FieldBuilder<TSchema>(this, arg)
     }
 
-    return this.#handleOperatorCondition(arg, op, this.#deepClone(value))
+    return this.#handleOperatorCondition(arg, op, deepClone(value))
   }
 
   public orGroup(callback: (builder: ConditionBuilder<TSchema>) => void): ConditionBuilder<TSchema> {
@@ -121,12 +127,12 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
   public addCondition(condition: ConditionItem): ConditionBuilder<TSchema> {
     const group = this.#getCurrentGroup()
     const key = group.$and ? '$and' : '$or'
-    group[key]!.push(this.#deepClone(condition))
+    group[key]!.push(deepClone(condition))
     return this
   }
 
   public build(): Condition {
-    const cloned = this.#deepClone(this.#root)
+    const cloned = deepClone(this.#root)
     return this.#unwrapSingleCondition(cloned)
   }
 
@@ -277,8 +283,8 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
   }
 
   #createGroup(type: 'and' | 'or', callback: (builder: ConditionBuilder<TSchema>) => void): ConditionBuilder<TSchema> {
-    if (this.#current.length >= ConditionBuilder.MAX_NESTING_DEPTH) {
-      throw new Error(`Maximum nesting depth of ${ConditionBuilder.MAX_NESTING_DEPTH} exceeded`)
+    if (this.#current.length >= ConditionBuilder.#MAX_NESTING_DEPTH) {
+      throw new Error(`Maximum nesting depth of ${ConditionBuilder.#MAX_NESTING_DEPTH} exceeded`)
     }
 
     const group: ConditionGroup = type === 'and' ? { $and: [] } : { $or: [] }
@@ -294,26 +300,5 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
     }
 
     return this
-  }
-
-  #deepClone<T>(obj: T): T {
-    if (obj === null || typeof obj !== 'object') {
-      return obj
-    }
-
-    if (Array.isArray(obj)) {
-      return obj.map((item) => this.#deepClone(item)) as unknown as T
-    }
-
-    if (obj instanceof Date) {
-      return new Date(obj) as unknown as T
-    }
-
-    const cloned = {} as T
-    Object.entries(obj).forEach(([key, value]) => {
-      cloned[key as keyof T] = this.#deepClone(value)
-    })
-
-    return cloned
   }
 }
