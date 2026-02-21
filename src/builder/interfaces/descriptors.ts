@@ -1,17 +1,13 @@
-import { Operator, OperatorValueType, SimpleValue, SimpleValueArray } from './types'
+import { Operator, OperatorValueType, SimpleValue } from './types'
 
-// Each condition can be one of:
-// 1. A simple value (converts to $eq)
-// 2. A simple array (converts to $in)
-// 3. An operator descriptor (e.g., { $eq: value })
-// 4. An explicit operator (e.g., { op: '$eq', value })
-type ConditionDescriptor =
-  | SimpleValue
-  | SimpleValueArray
-  | { [K in Operator]?: K extends keyof OperatorValueType ? OperatorValueType[K] : unknown }
-  | { op: Operator; value: unknown }
+// Operator descriptor: operator shorthand { $gt: value } or explicit { op, value }
+type OperatorDescriptor = { [K in Operator]?: K extends keyof OperatorValueType ? OperatorValueType[K] : unknown } | { op: Operator; value: unknown }
 
-// WhereDescriptor with looser typing for better inference
+// Schema-aware condition descriptor for a single field.
+// Simple values and array shorthands are constrained by the field type from TSchema.
+// Operator descriptors retain their own type constraints independent of the schema.
+type ConditionDescriptorFor<TFieldType> = (TFieldType & SimpleValue) | null | Array<TFieldType & (string | number)> | OperatorDescriptor
+
 export type WhereDescriptor<TSchema = Record<string, any>> = {
-  [K in keyof TSchema]?: ConditionDescriptor
-} & Record<string, ConditionDescriptor>
+  [K in keyof TSchema]?: ConditionDescriptorFor<TSchema[K]>
+}

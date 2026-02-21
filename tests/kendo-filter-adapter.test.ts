@@ -1,26 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest'
 
-
-
-import { AdapterType, ConditionAdapterRegistry, KendoFilterAdapter } from '../src/adapters';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+import { AdapterType, ConditionAdapterRegistry, KendoFilterAdapter } from '../src/adapters'
 
 describe('KendoFilterAdapter', () => {
   const adapter = new KendoFilterAdapter()

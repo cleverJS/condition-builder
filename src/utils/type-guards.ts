@@ -5,13 +5,7 @@ export function isConditionGroup(condition: Condition): condition is ConditionGr
 }
 
 export function isSimpleValue(value: unknown): value is SimpleValue {
-  return (
-    value === null ||
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean' ||
-    value instanceof Date
-  )
+  return value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value instanceof Date
 }
 
 export function isComparisonValue(value: unknown): value is Exclude<SimpleValue, boolean | null> {

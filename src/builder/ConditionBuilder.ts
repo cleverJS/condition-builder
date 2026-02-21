@@ -78,7 +78,7 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
     const builder = new ConditionBuilder<TSchema>()
 
     if (ConditionBuilder.#isWhereDescriptor(arg)) {
-      return builder.where(deepClone(arg))
+      return builder.#handleWhereDescriptor(deepClone(arg))
     }
 
     if (arg && op !== undefined) {
@@ -94,7 +94,7 @@ export class ConditionBuilder<TSchema = Record<string, any>> {
    * then provide a builder for further modifications
    */
   public static from<TSchema = Record<string, any>>(condition: Condition): ConditionBuilder<TSchema> {
-    return new ConditionBuilder<Record<string, any>>(condition)
+    return new ConditionBuilder<TSchema>(condition)
   }
 
   public where(field: keyof TSchema & string): FieldBuilder<TSchema>
