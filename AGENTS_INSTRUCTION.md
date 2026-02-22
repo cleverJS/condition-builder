@@ -405,22 +405,36 @@ const myPlugin: IAdapterPlugin = {
   deserializer: new MyDeserializer(),
 }
 
-const registry = ConditionAdapterRegistry.getInstance()
+const registry = new ConditionAdapterRegistry()
 registry.registerPlugin(myPlugin)
 ```
 
 ## Adapter Registry
 
-`ConditionAdapterRegistry` is a singleton for managing adapter instances:
+`ConditionAdapterRegistry` manages adapter instances. Create instances directly (DI-friendly) or use the factory function:
 
 ```typescript
-import { ConditionAdapterRegistry, AdapterType, KnexConditionAdapter } from '@cleverjs/condition-builder'
+import {
+  ConditionAdapterRegistry,
+  createConditionAdapterRegistry,
+  AdapterType,
+  KnexConditionAdapter,
+} from '@cleverjs/condition-builder'
 
-const registry = ConditionAdapterRegistry.getInstance()
+// Constructor with plugins
+const registry = new ConditionAdapterRegistry([
+  { type: AdapterType.KNEX, serializer: new KnexConditionAdapter() },
+])
 
-// Register
-registry.register(AdapterType.KNEX, new KnexConditionAdapter())
-registry.register('custom', mySerializer, myDeserializer)
+// Or factory function
+const registry2 = createConditionAdapterRegistry([
+  { type: AdapterType.KNEX, serializer: new KnexConditionAdapter() },
+])
+
+// Or empty registry + manual registration
+const registry3 = new ConditionAdapterRegistry()
+registry3.register(AdapterType.KNEX, new KnexConditionAdapter())
+registry3.register('custom', mySerializer, myDeserializer)
 
 // Retrieve
 const knexAdapter = registry.getSerializer(AdapterType.KNEX)
@@ -437,6 +451,25 @@ registry.clear()
 ```
 
 Predefined type constants: `AdapterType.KNEX`, `AdapterType.MIKROORM`, `AdapterType.KENDO`.
+
+### NestJS Integration
+
+```typescript
+@Module({
+  providers: [
+    {
+      provide: ConditionAdapterRegistry,
+      useFactory: () =>
+        new ConditionAdapterRegistry([
+          { type: AdapterType.KNEX, serializer: new KnexConditionAdapter() },
+          { type: AdapterType.KENDO, deserializer: new KendoFilterAdapter() },
+        ]),
+    },
+  ],
+  exports: [ConditionAdapterRegistry],
+})
+export class ConditionBuilderModule {}
+```
 
 ## Type Imports
 

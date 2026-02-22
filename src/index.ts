@@ -8,6 +8,7 @@ export {
   IConditionSerializer,
   KendoFilterAdapter,
   ConditionAdapterRegistry,
+  createConditionAdapterRegistry,
   AdapterType,
 } from './adapters'
 

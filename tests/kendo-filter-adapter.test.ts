@@ -568,7 +568,7 @@ describe('KendoFilterAdapter', () => {
         filters: [{ operator: 'eq' as const, field: 'Applicable', value: 0 }],
       }
 
-      const registry = ConditionAdapterRegistry.getInstance()
+      const registry = new ConditionAdapterRegistry()
       registry.register(AdapterType.KENDO, undefined, new KendoFilterAdapter())
 
       const deserializer = registry.getDeserializer(AdapterType.KENDO)

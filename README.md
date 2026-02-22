@@ -449,23 +449,34 @@ Pattern values are automatically escaped to prevent SQL injection (`%`, `_`, `\`
 
 ### Adapter Registry
 
-`ConditionAdapterRegistry` is a singleton for managing adapters by type key:
+`ConditionAdapterRegistry` manages adapters by type key. Create instances directly (DI-friendly) or use the factory function:
 
 ```typescript
 import {
   ConditionAdapterRegistry,
+  createConditionAdapterRegistry,
   AdapterType,
   KnexConditionAdapter,
   MikroOrmConditionAdapter,
   KendoFilterAdapter,
 } from '@cleverjs/condition-builder'
 
-const registry = ConditionAdapterRegistry.getInstance()
+// Option 1: Constructor with plugins
+const registry = new ConditionAdapterRegistry([
+  { type: AdapterType.KNEX, serializer: new KnexConditionAdapter() },
+  { type: AdapterType.MIKROORM, serializer: new MikroOrmConditionAdapter() },
+  { type: AdapterType.KENDO, deserializer: new KendoFilterAdapter() },
+])
 
-// Register serializers and deserializers
-registry.register(AdapterType.KNEX, new KnexConditionAdapter())
-registry.register(AdapterType.MIKROORM, new MikroOrmConditionAdapter())
-registry.register(AdapterType.KENDO, undefined, new KendoFilterAdapter())
+// Option 2: Factory function
+const registry2 = createConditionAdapterRegistry([
+  { type: AdapterType.KNEX, serializer: new KnexConditionAdapter() },
+])
+
+// Option 3: Empty registry + manual registration
+const registry3 = new ConditionAdapterRegistry()
+registry3.register(AdapterType.KNEX, new KnexConditionAdapter())
+registry3.register(AdapterType.KENDO, undefined, new KendoFilterAdapter())
 
 // Retrieve adapters
 const knex = registry.getSerializer(AdapterType.KNEX)
@@ -480,6 +491,35 @@ registry.hasDeserializer(AdapterType.KNEX) // false
 registry.getRegisteredTypes()              // ['knex', 'mikroorm', 'kendo', 'custom']
 registry.unregister(AdapterType.KNEX)
 registry.clear()
+```
+
+#### NestJS Integration
+
+The registry works seamlessly with NestJS dependency injection:
+
+```typescript
+import { Module } from '@nestjs/common'
+import {
+  ConditionAdapterRegistry,
+  AdapterType,
+  KnexConditionAdapter,
+  KendoFilterAdapter,
+} from '@cleverjs/condition-builder'
+
+@Module({
+  providers: [
+    {
+      provide: ConditionAdapterRegistry,
+      useFactory: () =>
+        new ConditionAdapterRegistry([
+          { type: AdapterType.KNEX, serializer: new KnexConditionAdapter() },
+          { type: AdapterType.KENDO, deserializer: new KendoFilterAdapter() },
+        ]),
+    },
+  ],
+  exports: [ConditionAdapterRegistry],
+})
+export class ConditionBuilderModule {}
 ```
 
 ### Custom Adapters

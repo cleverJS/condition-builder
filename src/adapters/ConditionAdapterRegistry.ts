@@ -6,13 +6,31 @@ export class ConditionAdapterRegistry {
   readonly #serializers = new Map<string, IConditionSerializer<any>>()
   readonly #deserializers = new Map<string, IConditionDeserializer<any>>()
 
-  private constructor() {}
+  public constructor(plugins?: IAdapterPlugin[]) {
+    if (plugins) {
+      for (const plugin of plugins) {
+        this.registerPlugin(plugin)
+      }
+    }
+  }
 
+  /**
+   * @deprecated Use `new ConditionAdapterRegistry()` or `createConditionAdapterRegistry()` instead.
+   * This method will be removed in a future major version.
+   */
   public static getInstance(): ConditionAdapterRegistry {
     if (!ConditionAdapterRegistry.#instance) {
       ConditionAdapterRegistry.#instance = new ConditionAdapterRegistry()
     }
     return ConditionAdapterRegistry.#instance
+  }
+
+  /**
+   * @deprecated Only needed for legacy singleton teardown in tests.
+   * Prefer creating fresh instances with `new ConditionAdapterRegistry()` instead.
+   */
+  public static resetInstance(): void {
+    ConditionAdapterRegistry.#instance = null
   }
 
   public registerPlugin(plugin: IAdapterPlugin): void {
@@ -71,4 +89,19 @@ export class ConditionAdapterRegistry {
     this.#serializers.clear()
     this.#deserializers.clear()
   }
+}
+
+/**
+ * Factory function to create a new `ConditionAdapterRegistry` with optional pre-registered plugins.
+ *
+ * @example
+ * ```typescript
+ * const registry = createConditionAdapterRegistry([
+ *   { type: AdapterType.KNEX, serializer: new KnexConditionAdapter() },
+ *   { type: AdapterType.KENDO, deserializer: new KendoFilterAdapter() },
+ * ])
+ * ```
+ */
+export function createConditionAdapterRegistry(plugins?: IAdapterPlugin[]): ConditionAdapterRegistry {
+  return new ConditionAdapterRegistry(plugins)
 }
