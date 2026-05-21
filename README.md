@@ -13,7 +13,7 @@ or your custom implementation.
 - **JSON Serializable** — store, transmit, and cache conditions; perfect for APIs, saved filters, and dynamic queries
 - **Field Mapping** — rename fields during serialization/deserialization (e.g., camelCase to snake_case)
 - **AND/OR Groups** — create nested condition groups with proper type inference
-- **Built-in Adapters** — out-of-the-box support for Knex, MikroORM, and Kendo UI filters
+- **Built-in Adapters** — out-of-the-box support for Knex, Kysely, MikroORM, and Kendo UI filters
 
 ## Installation
 ```bash
@@ -26,6 +26,9 @@ Peer dependencies (install only what you need):
 ```bash
 # For Knex adapter
 pnpm install knex
+
+# For Kysely adapter
+pnpm install kysely
 
 # For MikroORM adapter
 pnpm install @mikro-orm/core
@@ -349,6 +352,45 @@ const results = await knex('users').modify(applyConditions)
 
 `knex` is an optional peer dependency — the adapter throws a helpful error if it's not installed.
 
+### Kysely Adapter (Serializer)
+
+Converts a `Condition` to a function that applies `WHERE` clauses to a Kysely query builder.
+
+```typescript
+import { Kysely, PostgresDialect } from 'kysely'
+import { ConditionBuilder, KyselyConditionAdapter } from '@cleverjs/condition-builder'
+
+interface Database {
+  users: { id: number; name: string; status: string; age: number }
+}
+
+const db = new Kysely<Database>({ dialect: new PostgresDialect({ /* ... */ }) })
+
+const condition = ConditionBuilder.create()
+  .where('status').eq('active')
+  .where('age').gt(18)
+  .orGroup(g => g
+    .where('name').ilike('%John%')
+    .where('name').ilike('%Jane%')
+  )
+  .build()
+
+const adapter = new KyselyConditionAdapter()
+const applyConditions = adapter.serialize(condition)
+
+// applyConditions: <QB>(qb: QB) => QB — preserves the original builder type.
+// Works with SelectQueryBuilder, UpdateQueryBuilder, and DeleteQueryBuilder.
+const users = await applyConditions(db.selectFrom('users').selectAll()).execute()
+```
+
+**Operator mapping notes:**
+- `$between` is converted to `eb.and([col >= start, col <= end])` (works on all dialects).
+- `$notbetween` is converted to `eb.or([col < start, col > end])`.
+- `$ilike` is passed through as the `ilike` operator (Postgres). On other dialects, choose `$like` or implement a custom adapter.
+- `$isnull` / `$notnull` use `is null` / `is not null`.
+
+`kysely` is an optional peer dependency.
+
 ### MikroORM Adapter (Serializer)
 
 Converts a `Condition` to a MikroORM `FilterQuery<T>` object.
@@ -457,6 +499,7 @@ import {
   createConditionAdapterRegistry,
   AdapterType,
   KnexConditionAdapter,
+  KyselyConditionAdapter,
   MikroOrmConditionAdapter,
   KendoFilterAdapter,
 } from '@cleverjs/condition-builder'
@@ -464,6 +507,7 @@ import {
 // Option 1: Constructor with plugins
 const registry = new ConditionAdapterRegistry([
   { type: AdapterType.KNEX, serializer: new KnexConditionAdapter() },
+  { type: AdapterType.KYSELY, serializer: new KyselyConditionAdapter() },
   { type: AdapterType.MIKROORM, serializer: new MikroOrmConditionAdapter() },
   { type: AdapterType.KENDO, deserializer: new KendoFilterAdapter() },
 ])
@@ -488,7 +532,7 @@ registry.register('custom', myCustomAdapter)
 // Other methods
 registry.hasSerializer(AdapterType.KNEX)   // true
 registry.hasDeserializer(AdapterType.KNEX) // false
-registry.getRegisteredTypes()              // ['knex', 'mikroorm', 'kendo', 'custom']
+registry.getRegisteredTypes()              // ['knex', 'kysely', 'mikroorm', 'kendo', 'custom']
 registry.unregister(AdapterType.KNEX)
 registry.clear()
 ```

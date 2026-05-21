@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { ConditionBuilder, ConditionGroup } from '../src'
+import { ConditionBuilder, ConditionGroup, WhereDescriptor } from '../src'
 
 describe('ConditionBuilder', () => {
   it('builds simple eq condition', () => {
@@ -591,4 +591,18 @@ describe('ConditionBuilder', () => {
       expect('value' in result).toBe(false)
     })
   })
+
+  describe('Works with types', () => {
+    it('Generic type', () => {
+      const fn = <G extends IID>(id: number) => {
+        return ConditionBuilder.create<G>({ id } as WhereDescriptor<G>).build()
+      }
+
+      expect(fn(1)).toBeTruthy()
+    })
+  })
 })
+
+interface IID {
+  id: number
+}

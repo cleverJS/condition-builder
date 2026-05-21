@@ -1,6 +1,6 @@
 {
   "name": "@cleverjs/condition-builder",
-  "version": "1.0.6",
+  "version": "1.1.0",
   "description": "A builder to create nested JSON representing SQL where conditions",
   "main": "dist/index.js",
   "types": "dist/types/index.d.ts",
@@ -39,6 +39,7 @@
     "condition-builder",
     "orm-agnostic",
     "knex",
+    "kysely",
     "mikro-orm",
     "sql",
     "query",
@@ -55,11 +56,15 @@
   "type": "commonjs",
   "sideEffects": false,
   "peerDependencies": {
+    "@mikro-orm/core": ">=6.0.0",
     "knex": ">=3.0.0",
-    "@mikro-orm/core": ">=6.0.0"
+    "kysely": ">=0.27.0"
   },
   "peerDependenciesMeta": {
     "knex": {
+      "optional": true
+    },
+    "kysely": {
       "optional": true
     },
     "@mikro-orm/core": {
@@ -67,11 +72,12 @@
     }
   },
   "devDependencies": {
-    "globals": "^17.0.0",
     "@eslint/eslintrc": "^3.3.3",
     "@eslint/js": "^9.39.2",
-    "@swc/cli": "^0.7.9",
-    "@swc/core": "^1.15.8",
+    "@mikro-orm/core": "^6.6.14",
+    "@mikro-orm/postgresql": "^6.6.14",
+    "@swc/cli": "^0.8.1",
+    "@swc/core": "^1.15.33",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.18.13",
@@ -83,9 +89,9 @@
     "eslint-plugin-prettier": "^5.5.4",
     "eslint-plugin-security": "^3.0.1",
     "eslint-plugin-sonarjs": "^3.0.5",
-    "knex": "^3.1.0",
-    "@mikro-orm/core": "^6.6.3",
-    "@mikro-orm/postgresql": "^6.6.3",
+    "globals": "^17.0.0",
+    "knex": "^3.2.10",
+    "kysely": "^0.29.2",
     "prettier": "^3.7.4",
     "source-map-support": "^0.5.21",
     "supertest": "^7.2.2",

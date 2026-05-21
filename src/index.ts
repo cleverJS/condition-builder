@@ -2,6 +2,8 @@
 export {
   KnexConditionAdapter,
   KnexConditionApplier,
+  KyselyConditionAdapter,
+  KyselyConditionApplier,
   MikroOrmConditionAdapter,
   IConditionAdapter,
   IConditionDeserializer,
