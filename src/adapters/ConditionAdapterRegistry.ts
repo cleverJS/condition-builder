@@ -2,6 +2,7 @@ import { IAdapterPlugin } from './interfaces/IAdapterPlugin'
 import { IConditionDeserializer, IConditionSerializer } from './interfaces/IConditionAdapter'
 
 export class ConditionAdapterRegistry {
+  // eslint-disable-next-line sonarjs/public-static-readonly -- mutable by design: deprecated singleton state, reset via resetInstance()
   static #instance: ConditionAdapterRegistry | null = null
   readonly #serializers = new Map<string, IConditionSerializer<any>>()
   readonly #deserializers = new Map<string, IConditionDeserializer<any>>()
