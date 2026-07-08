@@ -96,9 +96,10 @@ describe('KnexConditionAdapter', () => {
     const query = applier(db('users'))
     const sql = query.toSQL()
 
-    expect(sql.sql).toMatch(/`email`\s+like\s+\?/i)
-    expect(sql.sql).toMatch(/not\s+`title`\s+like\s+\?/i)
-    expect(sql.bindings).toEqual(['%@example.com', '%test%'])
+    // Pattern operators emit an explicit ESCAPE so escaping works on every dialect
+    expect(sql.sql).toMatch(/`email`\s+like\s+\?\s+escape\s+\?/i)
+    expect(sql.sql).toMatch(/`title`\s+not like\s+\?\s+escape\s+\?/i)
+    expect(sql.bindings).toEqual(['%@example.com', '\\', '%test%', '\\'])
   })
 
   it('converts between operator', () => {
