@@ -99,7 +99,7 @@ describe('KendoFilterAdapter', () => {
 
       const result = adapter.deserialize(kendoFilter).build()
 
-      expect(result).toEqual({ field: 'text', op: '$notlike', value: '%spam%' })
+      expect(result).toEqual({ field: 'text', op: '$notilike', value: '%spam%' })
     })
 
     it('converts startswith operator', () => {
@@ -229,7 +229,7 @@ describe('KendoFilterAdapter', () => {
 
       const result = adapter.deserialize(kendoFilter).build()
 
-      expect(result).toEqual({ field: 'email', op: '$notlike', value: 'spam%' })
+      expect(result).toEqual({ field: 'email', op: '$notilike', value: 'spam%' })
     })
 
     it('converts doesnotendwith operator', () => {
@@ -241,7 +241,7 @@ describe('KendoFilterAdapter', () => {
 
       const result = adapter.deserialize(kendoFilter).build()
 
-      expect(result).toEqual({ field: 'filename', op: '$notlike', value: '%.tmp' })
+      expect(result).toEqual({ field: 'filename', op: '$notilike', value: '%.tmp' })
     })
   })
 
@@ -626,7 +626,7 @@ describe('KendoFilterAdapter', () => {
 
       const result = adapter.deserialize(kendoFilter).build()
 
-      expect(result).toEqual({ field: 'text', op: '$notlike', value: '%100\\%\\_done%' })
+      expect(result).toEqual({ field: 'text', op: '$notilike', value: '%100\\%\\_done%' })
     })
   })
 })

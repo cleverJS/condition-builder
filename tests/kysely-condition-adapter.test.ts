@@ -138,9 +138,10 @@ describe('KyselyConditionAdapter', () => {
     const applier = adapter.serialize(condition)
     const compiled = applier(db.selectFrom('users').selectAll() as any).compile()
 
-    expect(compiled.sql).toMatch(/"email"\s+like\s+\?/i)
-    expect(compiled.sql).toMatch(/"name"\s+not like\s+\?/i)
-    expect(compiled.parameters).toEqual(['%@example.com', '%test%'])
+    // Pattern operators emit an explicit ESCAPE so escaping works on every dialect
+    expect(compiled.sql).toMatch(/"email"\s+like\s+\?\s+escape\s+\?/i)
+    expect(compiled.sql).toMatch(/"name"\s+not like\s+\?\s+escape\s+\?/i)
+    expect(compiled.parameters).toEqual(['%@example.com', '\\', '%test%', '\\'])
   })
 
   it('converts ilike pattern (passed through as ilike operator)', () => {
@@ -151,8 +152,8 @@ describe('KyselyConditionAdapter', () => {
     const applier = adapter.serialize(condition)
     const compiled = applier(db.selectFrom('users').selectAll()).compile()
 
-    expect(compiled.sql).toMatch(/"name"\s+ilike\s+\?/i)
-    expect(compiled.parameters).toEqual(['%Alice%'])
+    expect(compiled.sql).toMatch(/"name"\s+ilike\s+\?\s+escape\s+\?/i)
+    expect(compiled.parameters).toEqual(['%Alice%', '\\'])
   })
 
   it('converts between operator into >= and <=', () => {

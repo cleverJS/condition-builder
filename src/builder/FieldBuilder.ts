@@ -1,17 +1,16 @@
+import { ARRAY_OPS, BETWEEN_OPS, COMPARISON_OPS, isRangeValue, isSimpleValue, NULL_OPS, PATTERN_OPS } from '../utils'
+
 import { ConditionBuilder } from './ConditionBuilder'
 import { ConditionItem, Operator, Range, SimpleValue, SimpleValueArray } from './interfaces/types'
-
-const NULL_OPS = new Set(['$isnull', '$notnull'])
-const ARRAY_OPS = new Set(['$in', '$notin', '$nin'])
-const BETWEEN_OPS = new Set(['$between', '$notbetween'])
-const PATTERN_OPS = new Set(['$like', '$notlike', '$ilike'])
-const COMPARISON_OPS = new Set(['$gt', '$gte', '$lt', '$lte'])
 
 export class FieldBuilder<TSchema = Record<string, any>> {
   readonly #parent: ConditionBuilder<TSchema>
   readonly #field: string
 
   public constructor(parent: ConditionBuilder<TSchema>, field: string) {
+    if (typeof field !== 'string' || field.trim().length === 0) {
+      throw new Error('Field name must be a non-empty string')
+    }
     this.#parent = parent
     this.#field = field
   }
@@ -45,6 +44,9 @@ export class FieldBuilder<TSchema = Record<string, any>> {
   }
   public ilike(value: string): ConditionBuilder<TSchema> {
     return this.#createCondition('$ilike', value)
+  }
+  public notIlike(value: string): ConditionBuilder<TSchema> {
+    return this.#createCondition('$notilike', value)
   }
 
   // Array operators
@@ -108,7 +110,7 @@ export class FieldBuilder<TSchema = Record<string, any>> {
       return this.#validateComparisonOp(op, value)
     }
 
-    if (!this.#isValidSimpleValue(value)) {
+    if (!isSimpleValue(value)) {
       throw new Error(`${op} requires a simple value (string|number|Date|boolean|null)`)
     }
   }
@@ -132,8 +134,9 @@ export class FieldBuilder<TSchema = Record<string, any>> {
     if (!Array.isArray(value)) {
       throw new Error(`${op} requires an array with two values [start, end]`)
     }
-    const [start, end] = value
-    if (value.length !== 2 || !this.#isValidRangeValue(start) || !this.#isValidRangeValue(end)) {
+    const range: unknown[] = value
+    const [start, end] = range
+    if (range.length !== 2 || !isRangeValue(start) || !isRangeValue(end)) {
       throw new Error(`${op} requires a tuple/array of two values [start, end], each being string|number|Date`)
     }
   }
@@ -145,20 +148,8 @@ export class FieldBuilder<TSchema = Record<string, any>> {
   }
 
   #validateComparisonOp(op: string, value: unknown): void {
-    if (!this.#isValidComparisonValue(value)) {
+    if (!isRangeValue(value)) {
       throw new Error(`${op} requires a comparable value (string|number|Date)`)
     }
-  }
-
-  #isValidSimpleValue(value: unknown): value is SimpleValue {
-    return value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value instanceof Date
-  }
-
-  #isValidComparisonValue(value: unknown): value is Exclude<SimpleValue, boolean | null> {
-    return typeof value === 'string' || typeof value === 'number' || value instanceof Date
-  }
-
-  #isValidRangeValue(value: unknown): value is Range {
-    return typeof value === 'string' || typeof value === 'number' || value instanceof Date
   }
 }

@@ -65,6 +65,7 @@ const condition = ConditionBuilder.create()
     tags: ['A', 'B'],               // array → $in
     search: { $like: '%term%' },    // pattern match
     range: { $between: [1, 10] },   // typed tuples
+    salary: { $gte: 1000, $lte: 5000 }, // multiple operators on one field → AND
   })
   .build()
 ```
@@ -176,6 +177,7 @@ Returned by `builder.where(field)`. Provides typed operator methods, all returni
 | `like(value)` | `$like` | `string` |
 | `ilike(value)` | `$ilike` | `string` |
 | `notLike(value)` | `$notlike` | `string` |
+| `notIlike(value)` | `$notilike` | `string` |
 
 #### Array
 | Method | Operator | Accepts |
@@ -217,14 +219,14 @@ All operators are prefixed with `$` and strictly typed:
 |----------|-----------|------------|
 | **Basic** | `$eq`, `$ne` | `string \| number \| Date \| boolean \| null` |
 | **Comparison** | `$gt`, `$gte`, `$lt`, `$lte` | `string \| number \| Date` |
-| **Pattern** | `$like`, `$ilike`, `$notlike` | `string` |
+| **Pattern** | `$like`, `$ilike`, `$notlike`, `$notilike` | `string` |
 | **Array** | `$in`, `$notin` (`$nin` alias) | `Array<string \| number>` |
 | **Between** | `$between`, `$notbetween` | `[start, end]` where each is `string \| number \| Date` |
 | **Null** | `$isnull`, `$notnull` | no value |
 
 ## Type Safety
 
-The library provides compile-time type checking for operators and their values:
+The library provides compile-time type checking for operators and their values — both with a typed schema and with the default untyped builder:
 
 ```typescript
 // ✅ These compile — correct value types
@@ -321,7 +323,32 @@ const condition = ConditionBuilder.create()
 // }
 ```
 
-**Note:** `.eq(null)` produces `{ op: '$eq', value: null }`, which is different from `.isNull()` which produces `{ op: '$isnull' }`. Use `.isNull()` / `.isNotNull()` when you need SQL `IS NULL` / `IS NOT NULL` semantics.
+**Note:** `.eq(null)` produces `{ op: '$eq', value: null }`. At serialization time every adapter treats it as SQL `IS NULL` (and `$ne null` as `IS NOT NULL`) — a literal `= NULL` comparison never matches anything in SQL, so the library normalizes the useful semantics instead. `{ deletedAt: null }` in object notation therefore works as an IS NULL check on every adapter. Prefer `.isNull()` / `.isNotNull()` when you want the intent to be explicit in the JSON.
+
+## Validation & Semantics
+
+`ConditionBuilder.from()` (and the constructor) deep-clone, normalize and **validate** the incoming condition tree — malformed JSON fails immediately with a pointed message (including the path and field name) instead of failing deep inside an adapter at serialization time:
+
+```typescript
+ConditionBuilder.from({ field: 'age', op: '$foo', value: 1 })
+// Error: condition (field 'age'): unknown operator '$foo' (string)
+
+ConditionBuilder.from({ $and: [...], $or: [...] })
+// Error: condition: a condition group must contain either '$and' or '$or', not both
+```
+
+Operators are normalized to canonical form (`$EQ`/`eq` → `$eq`). The standalone `validateCondition()` / `validateConditionItem()` helpers are exported for validating conditions at your own API boundaries.
+
+Behavioral contract, identical across all adapters (covered by a cross-adapter parity test suite):
+
+- **Empty groups are a no-op.** An `orGroup()` whose callback added nothing does not constrain the query at any nesting level; `.build()` prunes empty groups from the output.
+- **`$eq null` means `IS NULL`**, `$ne null` means `IS NOT NULL`.
+- **Empty `$in []` matches nothing; empty `$notin []` matches everything.** The fluent `.in([])` still throws (an empty literal array is almost always a bug in code), but deserialized input is serialized safely.
+- **Pattern escaping is dialect-independent** — Knex/Kysely emit `LIKE ? ESCAPE ?`. Note: the escape character is passed as a bound parameter; MySQL's *server-side* prepared statements reject a placeholder in ESCAPE (error 1210), but the default Knex/Kysely MySQL drivers use the text protocol and are unaffected.
+- **`$ilike`/`$notilike` require a dialect with native `ILIKE`** (PostgreSQL family) in Kysely; the Knex adapter falls back to `LIKE` on other dialects, where case-insensitivity depends on the column collation. This is the one operator pair that is not fully dialect-portable.
+- A group must contain exactly one of `$and`/`$or` — both at once is rejected.
+
+Passing a built `Condition` where a field descriptor is expected (e.g. `create(condition)` or `where(condition)`) throws with a hint to use `ConditionBuilder.from()` — previously this silently produced garbage conditions.
 
 ## Adapters
 
@@ -477,17 +504,17 @@ const condition = builder.build()
 | `gt`, `gte`, `lt`, `lte` | `$gt`, `$gte`, `$lt`, `$lte` | |
 | `in` | `$in` | |
 | `contains` | `$ilike` | wraps value: `%value%` |
-| `doesnotcontain` | `$notlike` | wraps value: `%value%` |
+| `doesnotcontain` | `$notilike` | wraps value: `%value%` |
 | `startswith` | `$ilike` | wraps value: `value%` |
 | `endswith` | `$ilike` | wraps value: `%value` |
-| `doesnotstartwith` | `$notlike` | wraps value: `value%` |
-| `doesnotendwith` | `$notlike` | wraps value: `%value` |
+| `doesnotstartwith` | `$notilike` | wraps value: `value%` |
+| `doesnotendwith` | `$notilike` | wraps value: `%value` |
 | `isnull`, `isnotnull` | `$isnull`, `$notnull` | |
 | `isempty`, `isnotempty` | `$eq ''`, `$ne ''` | |
 | `isnullorempty` | `$or` group | `$isnull` OR `$eq ''` |
 | `isnotnullorempty` | `$and` group | `$notnull` AND `$ne ''` |
 
-Pattern values are automatically escaped to prevent SQL injection (`%`, `_`, `\` characters).
+Pattern values are automatically escaped (`%`, `_`, `\` characters), and the Knex/Kysely adapters emit an explicit `ESCAPE` clause, so escaping behaves identically on every dialect (including SQLite and MSSQL, which have no default escape character). Negated pattern operators map to `$notilike` so an operator and its negation stay case-insensitive symmetrically. The `escapeLikeValue()` helper is exported for building your own patterns from user input.
 
 ### Adapter Registry
 

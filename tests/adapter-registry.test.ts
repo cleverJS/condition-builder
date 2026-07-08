@@ -59,13 +59,13 @@ describe('ConditionAdapterRegistry', () => {
   it('should throw error for unregistered serializer', () => {
     const registry = new ConditionAdapterRegistry()
 
-    expect(() => registry.getSerializer('nonexistent')).toThrow("Serializer 'nonexistent' not registered")
+    expect(() => registry.getSerializer('nonexistent')).toThrow('Serializer \'nonexistent\' not registered')
   })
 
   it('should throw error for unregistered deserializer', () => {
     const registry = new ConditionAdapterRegistry()
 
-    expect(() => registry.getDeserializer('nonexistent')).toThrow("Deserializer 'nonexistent' not registered")
+    expect(() => registry.getDeserializer('nonexistent')).toThrow('Deserializer \'nonexistent\' not registered')
   })
 
   it('should unregister adapters', () => {
@@ -155,9 +155,7 @@ describe('ConditionAdapterRegistry', () => {
         serialize: (condition: Condition) => JSON.stringify(condition),
       }
 
-      const registry = createConditionAdapterRegistry([
-        { type: 'test', serializer: mockSerializer },
-      ])
+      const registry = createConditionAdapterRegistry([{ type: 'test', serializer: mockSerializer }])
 
       expect(registry).toBeInstanceOf(ConditionAdapterRegistry)
       expect(registry.hasSerializer('test')).toBe(true)

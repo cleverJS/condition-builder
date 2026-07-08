@@ -1,6 +1,6 @@
 {
   "name": "@cleverjs/condition-builder",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "A builder to create nested JSON representing SQL where conditions",
   "main": "dist/index.js",
   "types": "dist/types/index.d.ts",
@@ -53,6 +53,9 @@
   ],
   "author": "",
   "license": "Commercial",
+  "engines": {
+    "node": ">=18"
+  },
   "type": "commonjs",
   "sideEffects": false,
   "peerDependencies": {

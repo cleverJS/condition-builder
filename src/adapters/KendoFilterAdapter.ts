@@ -1,4 +1,5 @@
 import { Condition, ConditionBuilder, ConditionGroup } from '../builder'
+import { SimpleValue } from '../builder/interfaces/types'
 import { escapeLikeValue, mapFieldName } from '../utils'
 
 import { IConditionDeserializer, IDeserializationOptions } from './interfaces/IConditionAdapter'
@@ -66,22 +67,31 @@ export type KendoOperator =
   | 'isnotnullorempty' // Is not null or empty
   | 'in' // In array
 
-type KendoConverter = (field: string, value: any) => Condition
+type KendoConverter = (field: string, value: unknown) => Condition
 
 const KENDO_CONVERTERS: Record<string, KendoConverter> = {
-  eq: (field, value) => (value === null ? { field, op: '$isnull' } : { field, op: '$eq', value }),
-  neq: (field, value) => (value === null ? { field, op: '$notnull' } : { field, op: '$ne', value }),
-  gt: (field, value) => ({ field, op: '$gt', value }),
-  gte: (field, value) => ({ field, op: '$gte', value }),
-  lt: (field, value) => ({ field, op: '$lt', value }),
-  lte: (field, value) => ({ field, op: '$lte', value }),
-  in: (field, value) => ({ field, op: '$in', value }),
+  eq: (field, value) => (value === null ? { field, op: '$isnull' } : { field, op: '$eq', value: value as SimpleValue }),
+  neq: (field, value) => (value === null ? { field, op: '$notnull' } : { field, op: '$ne', value: value as SimpleValue }),
+  gt: (field, value) => ({ field, op: '$gt', value: value as SimpleValue }),
+  gte: (field, value) => ({ field, op: '$gte', value: value as SimpleValue }),
+  lt: (field, value) => ({ field, op: '$lt', value: value as SimpleValue }),
+  lte: (field, value) => ({ field, op: '$lte', value: value as SimpleValue }),
+  in: (field, value) => {
+    // Client-controlled input: validate here so garbage fails with a clear
+    // message instead of producing a malformed condition
+    if (!Array.isArray(value) || !value.every((v) => typeof v === 'string' || typeof v === 'number')) {
+      throw new Error(`Kendo 'in' filter for field '${field}' requires an array of strings or numbers`)
+    }
+    return { field, op: '$in', value }
+  },
+  // Negated pattern operators use $notilike so that an operator and its
+  // negation stay case-insensitive symmetrically
   contains: (field, value) => ({ field, op: '$ilike', value: `%${escapeLikeValue(String(value))}%` }),
-  doesnotcontain: (field, value) => ({ field, op: '$notlike', value: `%${escapeLikeValue(String(value))}%` }),
+  doesnotcontain: (field, value) => ({ field, op: '$notilike', value: `%${escapeLikeValue(String(value))}%` }),
   startswith: (field, value) => ({ field, op: '$ilike', value: `${escapeLikeValue(String(value))}%` }),
   endswith: (field, value) => ({ field, op: '$ilike', value: `%${escapeLikeValue(String(value))}` }),
-  doesnotstartwith: (field, value) => ({ field, op: '$notlike', value: `${escapeLikeValue(String(value))}%` }),
-  doesnotendwith: (field, value) => ({ field, op: '$notlike', value: `%${escapeLikeValue(String(value))}` }),
+  doesnotstartwith: (field, value) => ({ field, op: '$notilike', value: `${escapeLikeValue(String(value))}%` }),
+  doesnotendwith: (field, value) => ({ field, op: '$notilike', value: `%${escapeLikeValue(String(value))}` }),
   isnull: (field) => ({ field, op: '$isnull' }),
   isnotnull: (field) => ({ field, op: '$notnull' }),
   isempty: (field) => ({ field, op: '$eq', value: '' }),
@@ -141,6 +151,12 @@ export class KendoFilterAdapter implements IConditionDeserializer<KendoFilter> {
   }
 
   #convertCompositeFilter(filter: IKendoGroup, options?: IDeserializationOptions): ConditionGroup {
+    if (!Array.isArray(filter.filters)) {
+      throw new Error("Kendo composite filter requires 'filters' to be an array")
+    }
+    if (filter.logic !== 'and' && filter.logic !== 'or') {
+      throw new Error(`Kendo composite filter requires 'logic' to be 'and' or 'or', got '${String(filter.logic)}'`)
+    }
     const conditions = filter.filters.map((f) => {
       if (this.#isCompositeFilter(f)) {
         return this.#convertCompositeFilter(f, options)
@@ -157,7 +173,14 @@ export class KendoFilterAdapter implements IConditionDeserializer<KendoFilter> {
   }
 
   #convertSimpleFilter(filter: IKendoItem, options?: IDeserializationOptions): Condition {
-    const { value } = filter
+    if (typeof filter.field !== 'string' || filter.field.trim().length === 0) {
+      throw new Error("Kendo filter requires 'field' to be a non-empty string")
+    }
+    if (typeof filter.operator !== 'string') {
+      throw new Error(`Kendo filter for field '${filter.field}' requires 'operator' to be a string`)
+    }
+
+    const value: unknown = filter.value
     const field = mapFieldName(filter.field, options)
     const operator = filter.operator.toLowerCase() as KendoOperator
 

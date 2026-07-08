@@ -1,7 +1,7 @@
 import type { Knex } from 'knex'
 
 import { Condition, ConditionGroup, ConditionItem } from '../builder'
-import { isConditionGroup, mapFieldName } from '../utils'
+import { isConditionGroup, mapFieldName, PATTERN_OPS, pruneEmptyGroups } from '../utils'
 
 import { IConditionSerializer, ISerializationOptions } from './interfaces/IConditionAdapter'
 
@@ -28,8 +28,10 @@ const KNEX_COMPARISON_OPS: Record<string, string> = {
   $gte: '>=',
   $lt: '<',
   $lte: '<=',
-  $like: 'like',
 }
+
+// Dialects with a native case-insensitive ILIKE operator
+const POSTGRES_CLIENTS = new Set(['pg', 'pg-native', 'postgres', 'postgresql', 'cockroachdb', 'redshift'])
 
 /**
  * Adapter to convert ConditionGroup to Knex QueryBuilder conditions
@@ -43,11 +45,16 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
 
   public serialize(condition: Condition, options?: ISerializationOptions): KnexConditionApplier {
     return (qb: Knex.QueryBuilder) => {
-      if (isConditionGroup(condition)) {
-        return this.#applyGroup(qb, condition, options)
-      } else {
-        return this.#applyItem(qb, condition, options)
+      // Empty groups are a no-op by contract; prune them so they cannot
+      // poison the query at any nesting level
+      const pruned = pruneEmptyGroups(condition)
+      if (!pruned) {
+        return qb
       }
+      if (isConditionGroup(pruned)) {
+        return this.#applyGroup(qb, pruned, options)
+      }
+      return this.#applyItem(qb, pruned, options)
     }
   }
 
@@ -117,6 +124,15 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
     const { op } = item
     const value = 'value' in item ? (item as { value: unknown }).value : undefined
 
+    // SQL `= NULL` never matches anything; $eq/$ne with null mean IS (NOT) NULL
+    if ((op === '$eq' || op === '$ne') && value === null) {
+      return this.#applyNullComparison(qb, field, op, useOr)
+    }
+
+    if (PATTERN_OPS.has(op)) {
+      return this.#applyPattern(qb, field, op, value as string, useOr)
+    }
+
     const comparisonOp = KNEX_COMPARISON_OPS[op]
     if (comparisonOp) {
       return useOr ? qb.orWhere(field, comparisonOp, value as any) : qb.where(field, comparisonOp, value as any)
@@ -125,12 +141,40 @@ export class KnexConditionAdapter implements IConditionSerializer<KnexConditionA
     return this.#applySpecialOp(qb, field, op, value, useOr)
   }
 
+  #applyNullComparison(qb: Knex.QueryBuilder, field: string, op: '$eq' | '$ne', useOr: boolean): Knex.QueryBuilder {
+    if (op === '$eq') {
+      return useOr ? qb.orWhereNull(field) : qb.whereNull(field)
+    }
+    return useOr ? qb.orWhereNotNull(field) : qb.whereNotNull(field)
+  }
+
+  /**
+   * Pattern operators are emitted as raw SQL with an explicit `ESCAPE ?` clause so
+   * that backslash-escaped wildcards (see escapeLikeValue) behave identically on
+   * every dialect — SQLite and MSSQL have no default escape character.
+   * ILIKE is native on PostgreSQL-family dialects; elsewhere LIKE is used and
+   * case-insensitivity relies on the column collation (same as Knex's whereILike).
+   * Caveat: MySQL's server-side prepared statements reject a placeholder in
+   * ESCAPE (error 1210); the default mysql/mysql2 clients use the text protocol
+   * and are unaffected.
+   */
+  #applyPattern(qb: Knex.QueryBuilder, field: string, op: string, value: string, useOr: boolean): Knex.QueryBuilder {
+    const negated = op === '$notlike' || op === '$notilike'
+    const insensitive = op === '$ilike' || op === '$notilike'
+    const likeOp = insensitive && this.#isPostgres(qb) ? 'ilike' : 'like'
+    const sqlText = `?? ${negated ? 'not ' : ''}${likeOp} ? escape ?`
+    const bindings = [field, value, '\\']
+    return useOr ? qb.orWhereRaw(sqlText, bindings) : qb.whereRaw(sqlText, bindings)
+  }
+
+  #isPostgres(qb: Knex.QueryBuilder): boolean {
+    const clientConfig = (qb as { client?: { config?: { client?: unknown }; dialect?: unknown } }).client
+    const client = clientConfig?.config?.client ?? clientConfig?.dialect
+    return typeof client === 'string' && POSTGRES_CLIENTS.has(client)
+  }
+
   #applySpecialOp(qb: Knex.QueryBuilder, field: string, op: string, value: any, useOr: boolean): Knex.QueryBuilder {
     switch (op) {
-      case '$notlike':
-        return useOr ? qb.orWhereNot(field, 'like', value) : qb.whereNot(field, 'like', value)
-      case '$ilike':
-        return useOr ? qb.orWhereILike(field, value) : qb.whereILike(field, value)
       case '$in':
         return useOr ? qb.orWhereIn(field, value) : qb.whereIn(field, value)
       case '$nin':

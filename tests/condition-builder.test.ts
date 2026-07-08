@@ -272,14 +272,20 @@ describe('ConditionBuilder', () => {
     ).toThrow('$in requires an array of strings or numbers')
   })
 
-  it('handles empty groups correctly', () => {
+  it('prunes empty groups from the built condition (empty group is a no-op)', () => {
     const cb = ConditionBuilder.create()
       .andGroup(() => {})
       .orGroup(() => {})
 
-    expect(cb.build()).toEqual({
-      $and: [{ $and: [] }, { $or: [] }],
-    })
+    expect(cb.build()).toEqual({ $and: [] })
+  })
+
+  it('prunes nested empty groups but keeps sibling conditions', () => {
+    const cb = ConditionBuilder.create()
+      .where('status', '$eq', 'active')
+      .orGroup(() => {})
+
+    expect(cb.build()).toEqual({ field: 'status', op: '$eq', value: 'active' })
   })
 
   it('handles deeply nested groups', () => {

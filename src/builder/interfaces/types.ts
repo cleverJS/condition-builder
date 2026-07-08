@@ -9,13 +9,13 @@ export type Operator = BasicOperator | ComparisonOperator | PatternOperator | Ar
 // Strongly typed operator groups
 export type BasicOperator = '$eq' | '$ne'
 export type ComparisonOperator = '$gt' | '$gte' | '$lt' | '$lte'
-export type PatternOperator = '$like' | '$notlike' | '$ilike'
+export type PatternOperator = '$like' | '$notlike' | '$ilike' | '$notilike'
 export type ArrayOperator = '$in' | '$notin' | '$nin'
 export type BetweenOperator = '$between' | '$notbetween'
 export type NullOperator = '$isnull' | '$notnull'
 
 // Map each operator to its allowed value type
-export type OperatorValueType = {
+export interface OperatorValueType {
   // Basic operators
   $eq: SimpleValue
   $ne: SimpleValue
@@ -28,6 +28,7 @@ export type OperatorValueType = {
   $like: string
   $notlike: string
   $ilike: string
+  $notilike: string
   // Array operators
   $in: SimpleValueArray
   $notin: SimpleValueArray
@@ -35,9 +36,9 @@ export type OperatorValueType = {
   // Between operators
   $between: BetweenValue
   $notbetween: BetweenValue
-  // Null operators
-  $isnull: true
-  $notnull: true
+  // Null operators: false inverts the check ({ $isnull: false } means IS NOT NULL)
+  $isnull: boolean
+  $notnull: boolean
 }
 
 // Condition interfaces with strict typing
@@ -72,7 +73,7 @@ interface IConditionNull {
 
 export type ConditionItem = IConditionSimple | IConditionBetween | IConditionIN | IConditionLike | IConditionNull
 
-export type ConditionGroup = {
+export interface ConditionGroup {
   $and?: Array<Condition>
   $or?: Array<Condition>
 }

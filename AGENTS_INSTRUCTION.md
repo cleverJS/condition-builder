@@ -112,6 +112,7 @@ const condition = ConditionBuilder.create<UserSchema>()
 | Pattern | `$like` | `.like(value)` | `string` |
 | Pattern | `$ilike` | `.ilike(value)` | `string` |
 | Pattern | `$notlike` | `.notLike(value)` | `string` |
+| Pattern | `$notilike` | `.notIlike(value)` | `string` |
 | Array | `$in` | `.in(values)` | `Array<string \| number>` |
 | Array | `$notin` | `.notIn(values)` | `Array<string \| number>` |
 | Range | `$between` | `.between(start, end)` | `string \| number \| Date` each |
@@ -273,11 +274,11 @@ Kendo operator mapping:
 | `gt`, `gte`, `lt`, `lte` | `$gt`, `$gte`, `$lt`, `$lte` | |
 | `in` | `$in` | |
 | `contains` | `$ilike` | wraps value: `%value%` |
-| `doesnotcontain` | `$notlike` | wraps value: `%value%` |
+| `doesnotcontain` | `$notilike` | wraps value: `%value%` |
 | `startswith` | `$ilike` | wraps value: `value%` |
 | `endswith` | `$ilike` | wraps value: `%value` |
-| `doesnotstartwith` | `$notlike` | wraps value: `value%` |
-| `doesnotendwith` | `$notlike` | wraps value: `%value` |
+| `doesnotstartwith` | `$notilike` | wraps value: `value%` |
+| `doesnotendwith` | `$notilike` | wraps value: `%value` |
 | `isnull`, `isnotnull` | `$isnull`, `$notnull` | |
 | `isempty`, `isnotempty` | `$eq ''`, `$ne ''` | |
 | `isnullorempty` | `$or` group | `$isnull` OR `$eq ''` |

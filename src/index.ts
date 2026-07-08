@@ -40,3 +40,7 @@ export type {
   NullOperator,
   OperatorValueType,
 } from './builder/interfaces/types'
+
+// Utilities: escape LIKE wildcards in user input, validate/normalize condition
+// trees at API boundaries, prune empty groups
+export { escapeLikeValue, isConditionGroup, mapFieldName, pruneEmptyGroups, validateCondition, validateConditionItem } from './utils'
